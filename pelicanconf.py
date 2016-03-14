@@ -36,4 +36,7 @@ DEFAULT_PAGINATION = 10
 # Uncomment following line if you want document-relative URLs when developing
 #RELATIVE_URLS = True
 
-THEME = 'nikhil-theme'
+THEME = 'blue-penguin'
+DISPLAY_FOOTER = False
+DISPLAY_MENU = False
+DISQUS_SITENAME = None
