@@ -2,3 +2,4 @@ _cache
 *.hi
 *.o
 site
+*.pyc
