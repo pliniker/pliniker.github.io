@@ -4,7 +4,9 @@ from __future__ import unicode_literals
 
 AUTHOR = u'Peter Liniker'
 SITENAME = u'TL;DR'
+SITESUBTITLE = u'by Peter Liniker'
 SITEURL = ''
+BYLINE = '&copy; 2016 Peter Liniker. All Rights Reserved.'
 
 GITHUB_URL = 'https://github.com/pliniker'
 
@@ -31,12 +33,12 @@ AUTHOR_FEED_RSS = None
 #SOCIAL = (('You can add links in your config file', '#'),
 #          ('Another social link', '#'),)
 
-DEFAULT_PAGINATION = 10
+DEFAULT_PAGINATION = 1
 
 # Uncomment following line if you want document-relative URLs when developing
 #RELATIVE_URLS = True
 
-THEME = 'blue-penguin'
-DISPLAY_FOOTER = False
+THEME = 'pliniker-theme'
 DISPLAY_MENU = False
+DISPLAY_FOOTER = False
 DISQUS_SITENAME = None

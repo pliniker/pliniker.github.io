@@ -1,6 +1,0 @@
-[submodule "nikhil-theme"]
-	path = nikhil-theme
-	url = https://github.com/gunchu/nikhil-theme
-[submodule "blue-penguin"]
-	path = blue-penguin
-	url = https://github.com/jody-frankowski/blue-penguin
