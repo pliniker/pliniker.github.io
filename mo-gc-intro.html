@@ -1,0 +1,324 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+        <title>An Experiment in Pauseless Garbage Collection</title>
+        <meta charset="utf-8" />
+        <meta name="viewport" content="width=device-width, initial-scale=1" />
+        <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/pure/0.6.0/pure-min.css" />
+        <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/pure/0.6.0/grids-responsive-min.css" />
+        <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/4.4.0/css/font-awesome.min.css" />
+        <link rel="stylesheet" href="/theme/css/main.css" />
+</head>
+<body>
+
+    <div class="main-nav-container">
+
+        <div class="pure-g">
+            <div class="pure-u-1 pure-u-lg-2-3">
+                <div class="main-nav">
+                    <ul class="main-nav-list">
+                        <li class="main-nav-item"><a href="/" class="pure-menu-link">TL;DR</a></li>
+
+                        <li class="main-nav-item active"><a href="/category/rust.html" class="pure-menu-link">Rust</a></li>
+                    </ul>
+                </div>
+             </div>
+
+             <div class="pure-u-1 pure-u-lg-1-3"></div>
+        </div>
+
+    </div>
+
+
+<div class="page-container">
+    <div class="entry-content">
+        <div class="post-meta pure-g">
+            <div class="pure-u-3-4 meta-data">
+                <a href="/category/rust.html" class="category">Rust</a><br />
+
+                <a class="author" href="/author/peter-liniker.html">Peter Liniker</a>
+                &mdash; <abbr title="2016-03-13T21:00:00-04:00">Sun 13 March 2016</abbr>
+            </div>
+        </div>
+    </div>
+
+    <div class="article-header-container">
+        <div class="background-image-container">
+
+            <div class="background-image-small">
+                <div class="title-container">
+                    <h1>An Experiment in Pauseless Garbage Collection</h1>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <div class="entry-content">
+        <p><strong>Introducing <a href="https://github.com/pliniker/mo-gc">mo-gc</a>, a garbage collector implemented in Rust</strong></p>
+<blockquote>
+<p>Mo-gc avoids mutator pauses by writing stack root reference count increments and decrements to a
+journal. The journal is read concurrently by a garbage collection thread that keeps a map of
+objects and their absolute reference counts. The object map is divided into young and mature
+generations and collection is done in parallel using mark and sweep.</p>
+<p>This project aims first to be an experiment in the scalability of the journaling approach and
+secondly, if successful, hopefully a long term project to build towards language runtimes written
+in the Rust programming language.</p>
+</blockquote>
+<h1>Contents</h1>
+<ul>
+<li><a href="#rt">Language Runtimes</a></li>
+<li><a href="#gcrust">Garbage Collection and Rust</a></li>
+<li><a href="#inmo">Inside mo-gc</a></li>
+<li><a href="#usemo">Using mo-gc</a></li>
+<li><a href="#ds">Implementing Data Structures</a></li>
+<li><a href="#res">Summary of Results</a></li>
+<li><a href="#conc">Concurrency Consequences</a></li>
+<li><a href="#thro">Improving Throughput</a></li>
+<li><a href="#rem">Concluding Remarks</a></li>
+</ul>
+<h3><a name="rt"></a>Language Runtimes</h3>
+<ul>
+<li>motivation: C/C++ runtimes</li>
+<li>integration issues: pauses, concurrency, GIL</li>
+</ul>
+<h3><a name="gcrust"></a>Garbage Collection and Rust</h3>
+<p>I will not attempt to repeat in entirety that which Felix S Klock has already written on integrating
+garbage collection with Rust.</p>
+<ul>
+<li>stack roots</li>
+<li>heap roots</li>
+<li>tracing</li>
+<li>spidermonkey</li>
+</ul>
+<h3><a name="inmo"></a>Inside mo-gc</h3>
+<p>Since the journal is a form of write barrier, where every rooting, unrooting and new object must
+be journaled, it is undoubtable that overall, this implementation is less efficient than an
+incremental, generational garbage collector where a write barrier is also required, which in turn
+is less efficient than non-incremental stop-the-world where no write barrier is needed.</p>
+<p>Since Rust's borrow mechanism may be used to alleviate unnecessary root reference count
+adjustments (just as an <code>Rc&lt;T&gt;</code> may be borrowed rather than cloned) in real world applications it
+is possible that the journal write barrier effect may be lessened.</p>
+<ul>
+<li>journal</li>
+<li>bitmaptrie</li>
+<li>generational</li>
+<li>parallel mark and sweep</li>
+</ul>
+<h3><a name="usemo"></a>Using mo-gc</h3>
+<table class="highlighttable"><tr><td class="linenos"><div class="linenodiv"><pre> 1
+ 2
+ 3
+ 4
+ 5
+ 6
+ 7
+ 8
+ 9
+10
+11
+12
+13
+14
+15
+16
+17
+18
+19</pre></div></td><td class="code"><div class="highlight"><pre><span></span><span class="k">extern</span><span class="w"> </span><span class="k">crate</span><span class="w"> </span><span class="n">mo_gc</span><span class="p">;</span><span class="w"></span>
+
+<span class="kn">use</span><span class="w"> </span><span class="n">mo_gc</span><span class="o">::</span><span class="p">{</span><span class="n">GcRoot</span><span class="p">,</span><span class="w"> </span><span class="n">GcThread</span><span class="p">};</span><span class="w"></span>
+
+
+<span class="k">fn</span><span class="w"> </span><span class="n">app</span><span class="p">()</span><span class="w"> </span><span class="p">{</span><span class="w"></span>
+<span class="w">    </span><span class="kd">let</span><span class="w"> </span><span class="n">something</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">GcRoot</span><span class="o">::</span><span class="n">new</span><span class="p">(</span><span class="nb">String</span><span class="o">::</span><span class="n">from</span><span class="p">(</span><span class="s">&quot;look ma! I have no defined lifetime!&quot;</span><span class="p">));</span><span class="w"></span>
+<span class="w">    </span><span class="n">println</span><span class="o">!</span><span class="p">(</span><span class="s">&quot;String says {}&quot;</span><span class="p">,</span><span class="w"> </span><span class="o">*</span><span class="n">something</span><span class="p">);</span><span class="w"></span>
+<span class="p">}</span><span class="w"></span>
+
+
+<span class="k">fn</span><span class="w"> </span><span class="n">main</span><span class="p">()</span><span class="w"> </span><span class="p">{</span><span class="w"></span>
+<span class="w">    </span><span class="kd">let</span><span class="w"> </span><span class="n">gc</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">GcThread</span><span class="o">::</span><span class="n">spawn_gc</span><span class="p">();</span><span class="w"></span>
+
+<span class="w">    </span><span class="kd">let</span><span class="w"> </span><span class="n">handle</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">gc</span><span class="p">.</span><span class="n">spawn_app</span><span class="p">(</span><span class="o">||</span><span class="w"> </span><span class="n">app</span><span class="p">());</span><span class="w"></span>
+
+<span class="w">    </span><span class="n">handle</span><span class="p">.</span><span class="n">join</span><span class="p">().</span><span class="n">expect</span><span class="p">(</span><span class="s">&quot;app thread failed&quot;</span><span class="p">);</span><span class="w"></span>
+<span class="w">    </span><span class="n">gc</span><span class="p">.</span><span class="n">join</span><span class="p">().</span><span class="n">expect</span><span class="p">(</span><span class="s">&quot;gc thread failed&quot;</span><span class="p">);</span><span class="w"></span>
+<span class="p">}</span><span class="w"></span>
+</pre></div>
+</td></tr></table>
+
+<h3><a name="ds"></a>Implementing Data structures</h3>
+<p>Use of <code>Gc</code> should be reasonably straightforward. Describe a Vec, tree, queue?</p>
+<p>Use of <code>GcAtomic</code> is more speculative.</p>
+<h3><a name="res"></a>Summary of Results</h3>
+<h4>How does this Compare?</h4>
+<p>At this point this implementation is too immature to warrant direct comparisons to other
+mainstream language runtimes.</p>
+<p>The author has not benchmarked any other runtimes since it is very difficult to
+compare like for like without establishing contexts for comparison.</p>
+<p>Establishing comparison contexts is something to do in future and the purpose would be, not
+to build a better garbage collector than everybody else, but to discover where this implementation
+can be improved and what use cases it is suitable or unsuitable for.</p>
+<p>Points of general garbage collection interest are:</p>
+<ul>
+<li>maximum mutator latency</li>
+<li>minimum mutator utilization</li>
+<li>GC memory requirement overhead</li>
+<li>GC CPU burden relative to mutator</li>
+</ul>
+<p>In the case of mo-gc, maximum latency is close to the speed of allocation. As to the other
+measures, they have yet to be taken and in particular, MMU and GC CPU burden are highly
+dependent on the use-case.</p>
+<h4>Implementation Status</h4>
+<p>The garbage collector works and the theory is sound, with current implementation caveats:</p>
+<ol>
+<li>
+<p>The journal itself is a success and appears to scale, at least on x86(32 and 64). Writing to
+   the journal adds roughly 25% to the cost of allocating a 64 byte object on the heap which
+   seems an acceptable tradeoff for pauselessness.</p>
+</li>
+<li>
+<p>The parallel mark and sweep phases and the journal itself are sufficiently performant that the
+   throughput bottleneck in the system is very evident: <em>processing</em> the journal into the object map is
+   currently single-threaded because insertion into the map is not concurrent.<br/><br/>
+   With a mutator thread allocating new objects in a tight loop, the GC thread's throughput is about
+   half the rate at which they are allocated.<br/><br/>
+   If object map insertion could be done in parallel on multiple threads, throughput scalability
+   would improve greatly.</p>
+</li>
+<li>
+<p>The object map is implemented using a bitmapped trie with compressed nodes and a path cache.
+   Indeces are the object addresses and they are mapped to metadata including the object reference
+   count. This was the author's first Rust code and should be forgiven.<br/><br/>
+   The use of the trie might also be improved on: while there is a trie path cache, on average,
+   each object lookup requires multiple pointer indirections.</p>
+</li>
+<li>
+<p>Mo-gc retains the default Rust allocator, jemalloc, rather than implementing its own allocator.
+   The object map essentially duplicates jemalloc's internal radix trie, increasing the number of
+   clock cycles for dropping dead objects. Maintaining a separate object map also increases memory
+   requirements.</p>
+</li>
+<li>
+<p>A race condition detailed in the next section.</p>
+</li>
+</ol>
+<h3><a name="conc"></a>Concurrency Consequences</h3>
+<p>There is a race condition in the current implementation where, during the mark phase of
+collection, the mutator reads a pointer from the heap, roots it, and then overwrites the
+heap location with a new pointer or null before the heap location has been traced. The object
+pointed to has been rooted and a journal entry been written, but the mark phase is not reading
+the journal at this point. The sweep phase will then drop the object leaving the mutator in
+a use-after-free state.</p>
+<p>This race condition means that the mutator threads cannot currently use mo-gc in it's present
+form as fully general purpose, or rather that data structures must be persistent or designed
+to avoid this scenario.</p>
+<p>The fix is not obvious. At first it may seem that we just need to read journal entries
+that were written during the mark phase and trace those too. But we end up back where we started,
+as that itself is a mark phase and we then need to repeat the operation potentially indefinitely.</p>
+<p>The problem that must be solved looks like this:</p>
+<ol>
+<li>object <code>LittleCatA</code> contains a reference to <code>LittleCatB</code>, which in turn refers to <code>LittleCatC</code>
+   all the way through in a linked list to <code>LittleCatZ</code></li>
+<li>the mutator has rooted <code>LittleCatA</code></li>
+<li>the GC enters the mark phase and begins tracing objects</li>
+<li>before <code>LittleCatA</code> is traced, the pointer to <code>LittleCatB</code> is popped off and replaced with
+   <code>null</code></li>
+<li>the mutator roots <code>LittleCatB</code> by writing an entry to the journal</li>
+<li>the GC traces <code>LittleCatA</code> and finds nothing inside</li>
+<li>the GC enters the sweep phase, dropping <code>LittleCatB</code> all the way through <code>LittleCatZ</code></li>
+</ol>
+<p>This is essentially a similar type of problem that <a href="https://engineering.heroku.com/blogs/2015-02-04-incremental-gc/">incremental garbage collectors</a> solve with
+three-color marking and write barriers on objects.</p>
+<h3><a name="thro"></a>Improving Throughput</h3>
+<h4>Journal Processing</h4>
+<p>The journal is currently processed in <code>YoungHeap::read_journals()</code> on a single thread only,
+as the object map must be updated or inserted for each journal entry and insertion into
+<code>bitmaptrie::Trie</code> cannot be done concurrently. This makes <code>Trie::set()</code> the single point of
+GC throughput limitation, causing journal processing to consume most of the GC linear time.</p>
+<p>If <code>Trie::set()</code> can be made thread-safe, throughput can be made to improve significantly and
+the GC will begin to scale.</p>
+<h4>A QoS Approach</h4>
+<p>Most garbage collectors have to pause the mutator periodically, even if for only a few milliseconds.</p>
+<p>If the GC is struggling to keep up with a mutator that is allocating large numbers of objects very
+quickly, a quality of service style mechanism might be considered where the mutator's allocation
+rate is throttled. This would hopefully be a last-resort option.</p>
+<h4>Heap Map Optimizations</h4>
+<p>The heap map, implemented with <code>bitmaptrie::Trie</code>, is at worst <code>O(log usize_width)</code> for lookup and
+insertion. It is path cached to improve lookups based on the previous lookup rather than starting
+at the root every time. Each node is also compressed, to minimize memory requirements.</p>
+<p>It may be faster, though possibly more memory hungry, to maintain an array of reference counts and
+a bitmap for mark flags of multiple objects in each leaf value. For example:</p>
+<table class="highlighttable"><tr><td class="linenos"><div class="linenodiv"><pre>1
+2
+3
+4
+5</pre></div></td><td class="code"><div class="highlight"><pre><span></span><span class="k">struct</span><span class="w"> </span><span class="n">ObjectMetaArray</span><span class="w"> </span><span class="p">{</span><span class="w"></span>
+<span class="w">    </span><span class="n">mark_flags</span><span class="o">:</span><span class="w"> </span><span class="n">BitField</span><span class="p">[</span><span class="n">N</span><span class="p">],</span><span class="w"></span>
+<span class="w">    </span><span class="n">refcounts</span><span class="o">:</span><span class="w"> </span><span class="p">[</span><span class="kt">u32</span><span class="p">;</span><span class="w"> </span><span class="n">N</span><span class="p">],</span><span class="w"></span>
+<span class="w">    </span><span class="n">vtables</span><span class="o">:</span><span class="w"> </span><span class="p">[</span><span class="kt">usize</span><span class="p">;</span><span class="w"> </span><span class="n">N</span><span class="p">],</span><span class="w"></span>
+<span class="p">}</span><span class="w"></span>
+</pre></div>
+</td></tr></table>
+
+<p>where <code>N</code> is a number of word-aligned addresses mapped to the array.  This would reduce trie
+pointer hops, making insertion and iteration faster, but would increase memory use due to the
+array being uncompressed.</p>
+<p>Alternatively, the bitmapped trie might be replaced with a data structure more typical for this
+purpose: a radix trie. It is not clear what magnitude of potential speedup is available here.</p>
+<p>Another alternative used in the <a href="http://felix-lang.org/share/src/packages/gc.fdoc">Felix</a> language garbage collector, which has somewhat in
+common with mo-gc, is a Judy array, though it's complexity and apparent inflexibility may be
+prohibitive.</p>
+<h3><a name"rem"></a>Concluding Remarks</h3>
+<p>It is my hope that with sufficient optimization, mo-gc or a future relative might be taken
+seriously as a foundational component of language runtimes hosted in Rust.</p>
+<p>The throughput issue currently makes it a non-contender except perhaps for low allocation-intensity
+applications but with the appropriate data structure I believe it can be addressed.</p>
+<p>The mark/journal race condition can be designed around but the fact that it prevents this from
+being used as a fully general-purpose GC will hinder this project unless it can be solved.</p>
+<h1>References</h1>
+<ul>
+<li><a href="http://researcher.watson.ibm.com/researcher/files/us-bacon/Bacon03Pure.pdf">Bacon2003</a> Bacon et al, A Pure Reference Counting Garbage Collector</li>
+<li><a href="http://www.cs.virginia.edu/~cs415/reading/bacon-garbage.pdf">Bacon2004</a> Bacon et al, A Unified Theory of Garbage Collection</li>
+<li><a href="http://www.hboehm.info/gc/tree.html">bdwgc</a> Boehm-Demers-Weiser GC: Two-Level Tree Structure for Fast Pointer Lookup</li>
+<li><a href="http://aturon.github.io/blog/2015/08/27/epoch/">crossbeam</a> Aaron Turon, Lock-freedom without garbage collection</li>
+<li><a href="http://fitzgeraldnick.com/weblog/60/">Oxischeme</a> Nick Fitzgerald, Memory Management in Oxischeme</li>
+<li><a href="https://github.com/Manishearth/rust-gc">Manishearth/rust-gc</a> Manish Goregaokar, rust-gc project</li>
+<li><a href="https://github.com/michaelwoerister/rs-persistent-datastructures">michaelwoerister/rs-persistent-datastructures</a> Michael Woerister, HAMT in Rust</li>
+<li><a href="http://blog.rust-lang.org/2015/08/14/Next-year.html">Rust blog</a> Rust in 2016</li>
+<li><a href="https://github.com/rust-lang/rust/pull/11399">rust-lang/rust#11399</a> Add garbage collector to std::gc</li>
+<li><a href="https://github.com/rust-lang/rfcs/issues/415">rust-lang/rfcs#415</a> Garbage collection</li>
+<li><a href="https://github.com/rust-lang/rust/issues/2997">rust-lang/rust#2997</a> Tracing GC in rust</li>
+<li><a href="https://blog.mozilla.org/research/2014/08/26/javascript-servos-only-garbage-collector/">Servo</a> Servo blog, JavaScript: Servo’s only garbage collector</li>
+<li><a href="https://www.youtube.com/watch?v=QcwyKLlmXeY">Shenandoah</a> Shenandoah, a low-pause GC for the JVM</li>
+</ul>
+    </div>
+
+    <footer>
+        <div class="tags">
+            <a href="/tag/mo-gc.html">mo-gc</a>
+            <a href="/tag/rust.html">rust</a>
+            <a href="/tag/gc.html">gc</a>
+        </div>
+        <div class="pure-g post-footer">
+            <div class="pure-u-1 pure-u-md-1-2">
+                <div class="pure-g poster-info">
+                    <div class="pure-u-3-4">
+                        <h3 class="author-name"><a href="/author/peter-liniker.html">Peter Liniker</a></h3>
+                        <p class="author-description">
+                        </p>
+                    </div>
+                </div>
+            </div>
+
+
+
+        </div>
+
+
+    </footer>
+
+
+</div>
+
+
+</body>
+</html>

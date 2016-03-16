@@ -340,8 +340,7 @@ div.article-header-container div.background-image-container div.background-image
     font-size: 36px;
     line-height: 1;
     margin: 0 20px 10px 20px;
-    padding-top: 20px;
-    color: #93183B; }
+    padding-top: 20px; }
     @media screen and (min-width: 35.5em) {
       div.article-header-container div.background-image-container div.background-image-small div.title-container h1 {
         font-size: 60px; } }
@@ -825,4 +824,4 @@ div.pagination {
   color: #0000cf;
   font-weight: bold; }
 
-/*# sourceMappingURL=main.css.map */
+/*# sourceMappingURL=main.map */
