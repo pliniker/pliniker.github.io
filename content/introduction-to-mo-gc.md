@@ -7,7 +7,7 @@ Authors: Peter Liniker
 Summary: Introduction to mo-gc
 
 
-**Introducing [mo-gc](https://github.com/pliniker/mo-gc), a garbage collector implemented in Rust**
+**Using [mo-gc](https://github.com/pliniker/mo-gc), a garbage collector implemented in Rust.**
 
 > Mo-gc avoids mutator pauses by writing stack root reference count increments and decrements to a
 > journal. The journal is read concurrently by a garbage collection thread that keeps a map of
@@ -150,18 +150,20 @@ The garbage collector works and the theory is sound, with current implementation
    clock cycles for dropping dead objects. Maintaining a separate object map also increases memory
    requirements.
 
-5. A race condition detailed in the next section.
+5. Use-after-free conditions detailed in the next section.
 
-### <a name="conc"></a>Concurrency Consequences
+### <a name="conc"></a>Premature Object Deallocation
 
-There is a race condition in the current implementation where, during the mark phase of
+#### The First
+
+There is a use-after-free condition in the current implementation where, during the mark phase of
 collection, the mutator reads a pointer from the heap, roots it, and then overwrites the
 heap location with a new pointer or null before the heap location has been traced. The object
 pointed to has been rooted and a journal entry been written, but the mark phase is not reading
 the journal at this point. The sweep phase will then drop the object leaving the mutator in
 a use-after-free state.
 
-This race condition means that the mutator threads cannot currently use mo-gc in it's present
+This means that the mutator threads cannot currently use mo-gc in it's present
 form as fully general purpose, or rather that data structures must be persistent or designed
 to avoid this scenario.
 
@@ -182,7 +184,23 @@ The problem that must be solved looks like this:
 7. the GC enters the sweep phase, dropping `LittleCatB` all the way through `LittleCatZ`
 
 This is essentially a similar type of problem that [incremental garbage collectors][19] solve with
-three-color marking and write barriers on objects.
+three-color marking and [write barriers][20] on objects.
+
+It may be that an additional form of write barrier on each object that marks it 'grey' when
+a reference to it is mutated can solve this problem.
+
+#### The Second
+
+If an object in the mature space is rooted and by way of indirection points at an object in the
+young generation, that mature object root is insufficient in the current implementation to mark
+the young object. The young object, if not reachable only in the young generation, will be
+dropped.
+
+In this case, an additional write barrier will only delay the drop but the inherent problem
+remains.
+
+The root set must include the object in the mature generation that holds the pointer to the
+young object.
 
 
 ### <a name="thro"></a>Improving Throughput
@@ -195,7 +213,13 @@ as the object map must be updated or inserted for each journal entry and inserti
 GC throughput limitation, causing journal processing to consume most of the GC linear time.
 
 If `Trie::set()` can be made thread-safe, throughput can be made to improve significantly and
-the GC will begin to scale.
+the GC will begin to scale. This may be unrealistic for a non-concurrent trie
+implementation though.
+
+An alternative to making `Trie::set()` thread-safe may be to give each mutator thread its own young
+generation object map. In this case the GC thread pool could process journals in parallel. However,
+when tracing, each mutator thread's root set would be needed to trace all the other
+object maps. This would allow a parallel approach but would be less efficient overall.
 
 #### A QoS Approach
 
@@ -281,3 +305,4 @@ being used as a fully general-purpose GC will hinder this project unless it can 
 [17]: http://www.hboehm.info/gc/tree.html
 [18]: http://felix-lang.org/share/src/packages/gc.fdoc
 [19]: https://engineering.heroku.com/blogs/2015-02-04-incremental-gc/
+[20]: https://developer.mozilla.org/en-US/docs/Mozilla/Projects/SpiderMonkey/Internals/Garbage_collection
