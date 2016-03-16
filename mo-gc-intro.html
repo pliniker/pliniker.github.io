@@ -54,7 +54,7 @@
     </div>
 
     <div class="entry-content">
-        <p><strong>Introducing <a href="https://github.com/pliniker/mo-gc">mo-gc</a>, a garbage collector implemented in Rust</strong></p>
+        <p><strong>Using <a href="https://github.com/pliniker/mo-gc">mo-gc</a>, a garbage collector implemented in Rust.</strong></p>
 <blockquote>
 <p>Mo-gc avoids mutator pauses by writing stack root reference count increments and decrements to a
 journal. The journal is read concurrently by a garbage collection thread that keeps a map of
@@ -198,17 +198,18 @@ dependent on the use-case.</p>
    requirements.</p>
 </li>
 <li>
-<p>A race condition detailed in the next section.</p>
+<p>Use-after-free conditions detailed in the next section.</p>
 </li>
 </ol>
-<h3><a name="conc"></a>Concurrency Consequences</h3>
-<p>There is a race condition in the current implementation where, during the mark phase of
+<h3><a name="conc"></a>Premature Object Deallocation</h3>
+<h4>The First</h4>
+<p>There is a use-after-free condition in the current implementation where, during the mark phase of
 collection, the mutator reads a pointer from the heap, roots it, and then overwrites the
 heap location with a new pointer or null before the heap location has been traced. The object
 pointed to has been rooted and a journal entry been written, but the mark phase is not reading
 the journal at this point. The sweep phase will then drop the object leaving the mutator in
 a use-after-free state.</p>
-<p>This race condition means that the mutator threads cannot currently use mo-gc in it's present
+<p>This means that the mutator threads cannot currently use mo-gc in it's present
 form as fully general purpose, or rather that data structures must be persistent or designed
 to avoid this scenario.</p>
 <p>The fix is not obvious. At first it may seem that we just need to read journal entries
@@ -227,7 +228,18 @@ as that itself is a mark phase and we then need to repeat the operation potentia
 <li>the GC enters the sweep phase, dropping <code>LittleCatB</code> all the way through <code>LittleCatZ</code></li>
 </ol>
 <p>This is essentially a similar type of problem that <a href="https://engineering.heroku.com/blogs/2015-02-04-incremental-gc/">incremental garbage collectors</a> solve with
-three-color marking and write barriers on objects.</p>
+three-color marking and <a href="https://developer.mozilla.org/en-US/docs/Mozilla/Projects/SpiderMonkey/Internals/Garbage_collection">write barriers</a> on objects.</p>
+<p>It may be that an additional form of write barrier on each object that marks it 'grey' when
+a reference to it is mutated can solve this problem.</p>
+<h4>The Second</h4>
+<p>If an object in the mature space is rooted and by way of indirection points at an object in the
+young generation, that mature object root is insufficient in the current implementation to mark
+the young object. The young object, if not reachable only in the young generation, will be
+dropped.</p>
+<p>In this case, an additional write barrier will only delay the drop but the inherent problem
+remains.</p>
+<p>The root set must include the object in the mature generation that holds the pointer to the
+young object.</p>
 <h3><a name="thro"></a>Improving Throughput</h3>
 <h4>Journal Processing</h4>
 <p>The journal is currently processed in <code>YoungHeap::read_journals()</code> on a single thread only,
@@ -235,7 +247,12 @@ as the object map must be updated or inserted for each journal entry and inserti
 <code>bitmaptrie::Trie</code> cannot be done concurrently. This makes <code>Trie::set()</code> the single point of
 GC throughput limitation, causing journal processing to consume most of the GC linear time.</p>
 <p>If <code>Trie::set()</code> can be made thread-safe, throughput can be made to improve significantly and
-the GC will begin to scale.</p>
+the GC will begin to scale. This may be unrealistic for a non-concurrent trie
+implementation though.</p>
+<p>An alternative to making <code>Trie::set()</code> thread-safe may be to give each mutator thread its own young
+generation object map. In this case the GC thread pool could process journals in parallel. However,
+when tracing, each mutator thread's root set would be needed to trace all the other
+object maps. This would allow a parallel approach but would be less efficient overall.</p>
 <h4>A QoS Approach</h4>
 <p>Most garbage collectors have to pause the mutator periodically, even if for only a few milliseconds.</p>
 <p>If the GC is struggling to keep up with a mutator that is allocating large numbers of objects very
