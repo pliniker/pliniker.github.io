@@ -39,7 +39,7 @@ footer, header, hgroup, menu, nav, section {
 }
 body {
     line-height: 1;
-    background-color: #EEE;
+    background-color: #FAFAFA;
 }
 ol, ul {
     list-style: none;
@@ -86,8 +86,20 @@ h1, h2, h3, h4, h5, h6 {
     font-family: sans-serif;
 }
 
-h1, h2, h3 {
+h1 {
+    font-size: 1.6em;
+    font-weight: bold;
+}
+
+h2 {
     font-size: 1.5em;
+}
+
+h3 {
+    font-size: 1.3em;
+}
+
+h1, h2, h3 {
     line-height: 1em;
     margin: 1em 0;
 }
@@ -248,8 +260,8 @@ nav a:hover {
     color: #FFF;
 }
 nav li.selected a {
-    background-color: #15A9DB;
-    color: #FFF;
+    background-color: #AA1138;
+    color: #EEE;
 }
 
 header .header_box {

@@ -24,14 +24,7 @@ AUTHOR_FEED_ATOM = None
 AUTHOR_FEED_RSS = None
 
 # Blogroll
-#LINKS = (('Pelican', 'http://getpelican.com/'),
-#         ('Python.org', 'http://python.org/'),
-#         ('Jinja2', 'http://jinja.pocoo.org/'),
-#         ('You can modify those links in your config file', '#'),)
-
-# Social widget
-#SOCIAL = (('You can add links in your config file', '#'),
-#          ('Another social link', '#'),)
+LINKS = (('Github', 'https://github.com/pliniker/'),)
 
 DEFAULT_PAGINATION = 1
 
@@ -39,6 +32,6 @@ DEFAULT_PAGINATION = 1
 #RELATIVE_URLS = True
 
 THEME = 'pliniker-theme'
-DISPLAY_MENU = False
+DISPLAY_MENU = True
 DISPLAY_FOOTER = False
 DISQUS_SITENAME = None
