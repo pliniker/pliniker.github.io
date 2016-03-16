@@ -31,7 +31,7 @@ DEFAULT_PAGINATION = 1
 # Uncomment following line if you want document-relative URLs when developing
 #RELATIVE_URLS = True
 
-THEME = 'pliniker-theme'
+THEME = 'medius'
 DISPLAY_MENU = True
 DISPLAY_FOOTER = False
 DISQUS_SITENAME = None
