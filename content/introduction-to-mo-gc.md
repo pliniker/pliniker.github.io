@@ -306,3 +306,5 @@ being used as a fully general-purpose GC will hinder this project unless it can 
 [18]: http://felix-lang.org/share/src/packages/gc.fdoc
 [19]: https://engineering.heroku.com/blogs/2015-02-04-incremental-gc/
 [20]: https://developer.mozilla.org/en-US/docs/Mozilla/Projects/SpiderMonkey/Internals/Garbage_collection
+[21]: http://llvm.org/docs/GarbageCollection.html
+[22]: http://wiki.luajit.org/New-Garbage-Collector
