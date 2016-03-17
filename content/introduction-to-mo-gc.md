@@ -14,9 +14,8 @@ Summary: Introduction to mo-gc
 > objects and their absolute reference counts. The object map is divided into young and mature
 > generations and collection is done in parallel using mark and sweep.
 >
-> This project aims first to be an experiment in the scalability of the journaling approach and
-> secondly, if successful, hopefully a long term project to build towards language runtimes written
-> in the Rust programming language.
+> The journal is a type of write barrier and this project is an experiment in the feasibility,
+> limitations and scalability of the journaling approach.
 
 
 # Contents
@@ -27,7 +26,7 @@ Summary: Introduction to mo-gc
 * [Using mo-gc](#usemo)
 * [Implementing Data Structures](#ds)
 * [Summary of Results](#res)
-* [Concurrency Consequences](#conc)
+* [Journal as Write Barrier](#conc)
 * [Improving Throughput](#thro)
 * [Concluding Remarks](#rem)
 
@@ -152,7 +151,10 @@ The garbage collector works and the theory is sound, with current implementation
 
 5. Use-after-free conditions detailed in the next section.
 
-### <a name="conc"></a>Premature Object Deallocation
+### <a name="conc"></a>Journal as Write Barrier
+
+The limitations of the journal as a write barrier are evident in two premature object deallocation
+scenarios.
 
 #### The First
 

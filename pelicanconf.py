@@ -4,11 +4,8 @@ from __future__ import unicode_literals
 
 AUTHOR = u'Peter Liniker'
 SITENAME = u'TL;DR'
-SITESUBTITLE = u'by Peter Liniker'
 SITEURL = ''
-BYLINE = '&copy; 2016 Peter Liniker. All Rights Reserved.'
-
-GITHUB_URL = 'https://github.com/pliniker'
+BYLINE = u'&copy; 2016 Peter Liniker. All Rights Reserved.'
 
 PATH = 'content'
 
@@ -32,6 +29,11 @@ DEFAULT_PAGINATION = 1
 #RELATIVE_URLS = True
 
 THEME = 'medius'
-DISPLAY_MENU = True
-DISPLAY_FOOTER = False
 DISQUS_SITENAME = None
+
+MEDIUS_AUTHORS = {
+        'Peter Liniker': {
+            'description': u"If you think without writing, you only think you're thinking. - Leslie Lamport."
+            }
+        }
+
