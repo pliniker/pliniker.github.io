@@ -160,17 +160,7 @@ Use of `GcAtomic` is more speculative.
 
 ### <a name="res"></a>Summary of Results
 
-#### How does this Compare?
-
-At this point this implementation is too immature to warrant direct comparisons to other
-mainstream language runtimes.
-
-The author has not benchmarked any other runtimes since it is very difficult to
-compare like for like without establishing contexts for comparison.
-
-Establishing comparison contexts is something to do in future and the purpose would be, not
-to build a better garbage collector than everybody else, but to discover where this implementation
-can be improved and what use cases it is suitable or unsuitable for.
+#### Measures
 
 Points of general garbage collection interest are:
 
@@ -183,8 +173,25 @@ In the case of mo-gc, maximum latency is close to the speed of allocation. As to
 measures, they have yet to be taken and in particular, MMU and GC CPU burden are highly
 dependent on the use-case.
 
+A brief list of test cases and their descriptions is given here:
 
-#### Implementation Status
+| Test | Description |
+|------|-------------|
+| 1   | tight loop allocating 25,000,000 8-byte objects |
+| 2   | 50ms pauses every 2048 allocations |
+
+Some rudimentary results, conducted on an 8-core Xeon E3-1271, are listed below:
+
+| Test | Allocs/sec | Mut wall-clock | GC deallocs/sec | GC CPU time |
+|------|------------|----------------|-----------------|-------------|
+| 1    | 22,400,000 | 1115ms         | 10,200,000      | 2456ms      |
+| 2    | 81,000     | 30,800ms       | 2,100,000       | 1200ms      |
+
+In the first test case, the mutator gets near 100% of a CPU as the GC is not running on all eight
+cores at all times.
+
+
+#### Qualitative Summary of Performance
 
 1. Since the journal is a form of write barrier, where every rooting, unrooting and new object must
    be journaled, it is undoubtable that this implementation is less efficient than an
@@ -354,7 +361,9 @@ The coherency and throughput issues make the current implementation impractical 
 * [Bacon2004][2] Bacon et al, A Unified Theory of Garbage Collection
 * [bdwgc][17] Boehm-Demers-Weiser GC: Two-Level Tree Structure for Fast Pointer Lookup
 * [felix-lang][18] Felix programming language garbage collector
-* [Manishearth/rust-gc][4] Manish Goregaokar, rust-gc project
+* [Klock2011][26] Felix S Klock II: Scalable Garbage Collection via Remembered Set
+  Summarization and Refinement
+* [rust-gc][4] Manish Goregaokar, rust-gc project
 * [Oxischeme][3] Nick Fitzgerald, Memory Management in Oxischeme
 * [Rust blog][5] Rust in 2016
 * [rust-lang/rust#11399][6] Add garbage collector to std::gc
