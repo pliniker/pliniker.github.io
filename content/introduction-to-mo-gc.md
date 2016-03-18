@@ -1,4 +1,4 @@
-Title: An Experiment in Pauseless Garbage Collection
+Title: An Experiment in Garbage Collection in Rust
 Date: 2016-03-13 21:00
 Category: Rust
 Tags: mo-gc, rust, gc
@@ -7,19 +7,22 @@ Authors: Peter Liniker
 Summary: Introduction to mo-gc
 
 
+
 **Preliminary results for [mo-gc](https://github.com/pliniker/mo-gc), a garbage collector
 written in Rust.**
 
-> Mo-gc avoids mutator pauses by writing stack root reference count increments and decrements to a
-> journal. The journal is read concurrently by a garbage collection thread that keeps a map of
-> objects and their absolute reference counts. The object map is divided into young and mature
-> generations and collection is done with parallellized mark and sweep phases.
+> Mo-gc avoids pausing the mutator to scan the stack by writing stack root reference count
+> increments and decrements to a journal. The journal is read concurrently by a garbage
+> collection thread that keeps a map of objects and their absolute reference counts. The object
+> map is divided into young and mature generations and collection is done with parallellized
+> mark and sweep phases.
 >
-> The journal is a type of write barrier and this project is an experiment in the feasibility,
-> limitations and scalability of the journal-as-write-barrier approach.
+> The journal is an extension of a type snapshot-at-beginning write barrier and this project
+> is an experiment in the feasibility, limitations and scalability of this approach.
 >
 > A second aspect of the experiment is to gauge the possible performance of a GC in and for
 > Rust that does not depend on rustc, Rust runtime or LLVM awareness of a GC.
+
 
 
 # Contents
@@ -35,24 +38,48 @@ written in Rust.**
 * [Concluding Remarks](#rem)
 
 
+
 ### <a name="rt"></a>Motivation: Hosting Languages
 
-Originally inspired by [fitzgen][25]'s article on memory management in [Oxischeme][3]...
+If a higher level programming language is not hosted in itself, there is a very high chance that
+it is written in C or C++. By a degree of necessity, lower level interaction or optimized
+extensionswith those runtimes must also be in C or C++, perpetuating the pervasiveness of
+these two languages.
 
-* motivation: C/C++ runtimes
-* integration issues: pauses, concurrency, GIL
+Mo-gc is motivated by the safety benefits of Rust over C and C++ to explore a programming
+language runtime written in Rust. Having familiar and attractive dynamic or scripting languages
+written in Rust may lead to wider Rust adoption, spreading the safety.
+
+The primary barrier is the current lack of Rust compiler awareness of garbage collection needs.
+It is understood that this is in the research phase and that some proposals may be released
+[this year][5].
+
+Partially because it is not available but also somewhat to keep a runtime as
+unobtrusive and as unpervasive as possible, mo-gc chooses to avoid the use of GC support and to
+avoid implementing the common technique of stop-the-world stack-scanning.
+
+
 
 ### <a name="gcrust"></a>Garbage Collection and Rust
 
 Since [pnkfelix][23] has [already][14] [written][15] [a thorough][16] overview of the challenges
 involved in integrating a garbage collector with Rust, I will not elaborate on that here.
 
-Rather than a GC that is tightly coupled to the Rust compiler and runtime, mo-gc is analagous
-to [SpiderMonkey's relationship with Servo][13], in that smart pointers are required to root and
-unroot objects. In order to avoid pausing the mutator, it is not possible to scan the stack
-anyway.
+On the one hand, we have decided not to be reliant on possible compiler GC support.
 
-Further, because we do not have type maps to rely on, every object that wishes to participate
+On the other hand, we do not necessarily want memory management that is too distant from the host
+language. [Oxischeme][3] is hosted in Rust and has an [arena based mark-and-sweep][25] garbage
+collector, with different arenas for different object types. This makes it suitable for the
+runtime it is integrated with, but far less ergonomic for more general use in Rust.
+
+As a consequence, mo-gc is analagous to [SpiderMonkey's relationship with Servo][13], in that
+smart pointers are required to root and unroot objects. Some ergonomics are sacrificed here, but
+the tradeoff is established and currently accepted in Servo.
+
+
+#### Tracing Concurrently
+
+Because we do not have type maps to rely on, every object that wishes to participate
 in being GC managed must implement a trait:
 
 ```
@@ -82,14 +109,8 @@ mutator running, must be thread safe and ideally present a consistent snapshot o
 the data structure.
 
 
+
 ### <a name="inmo"></a>Inside mo-gc
-
-"snapshot-at-beginning"
-
-Since the journal is a form of write barrier, where every rooting, unrooting and new object must
-be journaled, it is undoubtable that overall, this implementation is less efficient than an
-incremental, generational garbage collector where a write barrier is also required, which in turn
-is less efficient than non-incremental stop-the-world where no write barrier is needed.
 
 Since Rust's borrow mechanism may be used to alleviate unnecessary root reference count
 adjustments (just as an `Rc<T>` may be borrowed rather than cloned) in real world applications it
@@ -99,6 +120,7 @@ is possible that the journal write barrier effect may be lessened.
 * bitmaptrie
 * generational
 * parallel mark and sweep
+
 
 
 ### <a name="usemo"></a>Using mo-gc
@@ -127,11 +149,13 @@ fn main() {
 ```
 
 
+
 ### <a name="ds"></a>Implementing Data structures
 
 Use of `Gc` should be reasonably straightforward. Describe a Vec, tree, queue?
 
 Use of `GcAtomic` is more speculative.
+
 
 
 ### <a name="res"></a>Summary of Results
@@ -159,15 +183,19 @@ In the case of mo-gc, maximum latency is close to the speed of allocation. As to
 measures, they have yet to be taken and in particular, MMU and GC CPU burden are highly
 dependent on the use-case.
 
+
 #### Implementation Status
 
-The garbage collector works and the theory is sound, with current implementation caveats:
+1. Since the journal is a form of write barrier, where every rooting, unrooting and new object must
+   be journaled, it is undoubtable that this implementation is less efficient than an
+   incremental garbage collector where a write barrier is also required, which in turn
+   is less efficient than non-incremental stop-the-world where no write barrier is needed.
 
-1. The journal itself is a success and appears to scale, at least on x86(32 and 64). Writing to
-   the journal adds roughly 25% to the cost of allocating a 64 byte object on the heap which
-   seems an acceptable tradeoff for pauselessness.
+2. The journal itself is a success and appears to scale, at least on x86(32 and 64). Writing a
+   two-word struct to the journal adds roughly 25% to the cost of allocating a 64 byte object on
+   the heap.
 
-2. The parallel mark and sweep phases and the journal itself are sufficiently performant that the
+3. The parallel mark and sweep phases and the journal itself are sufficiently performant that the
    throughput bottleneck in the system is very evident: _processing_ the journal into the object map is
    currently single-threaded because insertion into the map is not concurrent.<br/><br/>
    With a mutator thread allocating new objects in a tight loop, the GC thread's throughput is about
@@ -175,25 +203,28 @@ The garbage collector works and the theory is sound, with current implementation
    If object map insertion could be done in parallel on multiple threads, throughput scalability
    would improve greatly.
 
-3. The object map is implemented using a bitmapped trie with compressed nodes and a path cache.
+4. The object map is implemented using a bitmapped trie with compressed nodes and a path cache.
    Indeces are the object addresses and they are mapped to metadata including the object reference
    count. This was the author's first Rust code and should be forgiven.<br/><br/>
    The use of the trie might also be improved on: while there is a trie path cache, on average,
    each object lookup requires multiple pointer indirections.
 
-4. Mo-gc retains the default Rust allocator, jemalloc, rather than implementing its own allocator.
+5. Mo-gc retains the default Rust allocator, jemalloc, rather than implementing its own allocator.
    The object map essentially duplicates jemalloc's internal radix trie, increasing the number of
    clock cycles for dropping dead objects. Maintaining a separate object map also increases memory
    requirements.
 
-5. Use-after-free conditions detailed in the next section.
+6. Coherence issues between the mutator and GC threads detailed in the next section.
 
-### <a name="conc"></a>Journal as Write Barrier
 
-The limitations of the journal as a write barrier are evident in two premature object deallocation
-scenarios.
 
-#### The First
+### <a name="conc"></a>Incoherence
+
+In short, the limitations of the current implementation of the journal as a write barrier are
+the same set of problems that are overcome by an incremental garbage collector's write barrier.
+
+
+#### Journal as Write Barrier
 
 There is a use-after-free condition in the current implementation where, during the mark phase of
 collection, the mutator reads a pointer from the heap, roots it, and then overwrites the
@@ -228,7 +259,8 @@ tri-color marking and [write barriers][20] on objects.
 It may be that an additional form of write barrier on each object that marks it 'grey' when
 a reference to it is mutated can solve this problem.
 
-#### The Second
+
+#### The Remembered Set
 
 If an object in the mature space is rooted and by way of indirection points at an object in the
 young generation, that mature object root is insufficient in the current implementation to mark
@@ -242,6 +274,7 @@ The root set must include the object in the mature generation that holds the poi
 young object.
 
 
+
 ### <a name="thro"></a>Improving Throughput
 
 #### Journal Processing
@@ -251,14 +284,18 @@ as the object map must be updated or inserted for each journal entry and inserti
 `bitmaptrie::Trie` cannot be done concurrently. This makes `Trie::set()` the single point of
 GC throughput limitation, causing journal processing to consume most of the GC linear time.
 
-If `Trie::set()` can be made thread-safe, throughput can be made to improve significantly and
-the GC will begin to scale. This may be unrealistic for a non-concurrent trie
-implementation though.
+If `Trie::set()` might be made thread-safe, throughput can be made to improve significantly and
+the GC will begin to scale. This may be an unrealistic expectation for the current non-concurrent
+trie implementation though.
 
-An alternative to making `Trie::set()` thread-safe may be to give each mutator thread its own young
+A more approachable design may be to give each mutator thread its own young
 generation object map. In this case the GC thread pool could process journals in parallel. However,
 when tracing, each mutator thread's root set would be needed to trace all the other
 object maps. This would allow a parallel approach but would be less efficient overall.
+
+Giving each mutator thread its own young generation may pave the way to integrating a custom
+allocator in a [heap-partitioned][31] design, which will be discussed later.
+
 
 #### A QoS Approach
 
@@ -267,6 +304,7 @@ Most garbage collectors have to pause the mutator periodically, even if for only
 If the GC is struggling to keep up with a mutator that is allocating large numbers of objects very
 quickly, a quality of service style mechanism might be considered where the mutator's allocation
 rate is throttled. This would hopefully be a last-resort option.
+
 
 #### Heap Map Optimizations
 
@@ -298,13 +336,17 @@ common with mo-gc, is a Judy array, though it's complexity and apparent inflexib
 prohibitive.
 
 
+#### Custom Allocator
+
+As mentioned in the earlier section _Journal Processing_, this overal architecture may be
+conducive to a partitioned heap allocator and a [corresponding collection approach][31].
+
+
+
 ### <a name"rem"></a>Concluding Remarks
 
-The throughput issue currently makes it a non-contender except perhaps for low allocation-intensity
-applications but with the appropriate data structure I believe it can be addressed.
+The coherency and throughput issues make the current implementation impractical for use.
 
-The mark/journal race condition can be designed around but the fact that it prevents this from
-being used as a fully general-purpose GC will hinder this project unless it can be solved.
 
 
 # Related Work
@@ -343,3 +385,4 @@ being used as a fully general-purpose GC will hinder this project unless it can 
 [24]: http://doc.cat-v.org/inferno/concurrent_gc/concurrent_gc.pdf
 [25]: https://github.com/fitzgen
 [26]: http://www.ccs.neu.edu/home/pnkfelix/thesis/klock11-diss.pdf
+[27]: http://www.cs.rice.edu/~javaplt/311/Readings/wilson92uniprocessor.pdf
