@@ -54,43 +54,71 @@
     </div>
 
     <div class="entry-content">
-        <p><strong>Using <a href="https://github.com/pliniker/mo-gc">mo-gc</a>, a garbage collector implemented in Rust.</strong></p>
+        <p><strong>Preliminary results for <a href="https://github.com/pliniker/mo-gc">mo-gc</a>, a garbage collector
+written in Rust.</strong></p>
 <blockquote>
 <p>Mo-gc avoids mutator pauses by writing stack root reference count increments and decrements to a
 journal. The journal is read concurrently by a garbage collection thread that keeps a map of
 objects and their absolute reference counts. The object map is divided into young and mature
-generations and collection is done in parallel using mark and sweep.</p>
-<p>This project aims first to be an experiment in the scalability of the journaling approach and
-secondly, if successful, hopefully a long term project to build towards language runtimes written
-in the Rust programming language.</p>
+generations and collection is done with parallellized mark and sweep phases.</p>
+<p>The journal is a type of write barrier and this project is an experiment in the feasibility,
+limitations and scalability of the journal-as-write-barrier approach.</p>
+<p>A second aspect of the experiment is to gauge the possible performance of a GC in and for
+Rust that does not depend on rustc, Rust runtime or LLVM awareness of a GC.</p>
 </blockquote>
 <h1>Contents</h1>
 <ul>
-<li><a href="#rt">Language Runtimes</a></li>
+<li><a href="#rt">Motivation: Hosting Languages</a></li>
 <li><a href="#gcrust">Garbage Collection and Rust</a></li>
 <li><a href="#inmo">Inside mo-gc</a></li>
 <li><a href="#usemo">Using mo-gc</a></li>
 <li><a href="#ds">Implementing Data Structures</a></li>
 <li><a href="#res">Summary of Results</a></li>
-<li><a href="#conc">Concurrency Consequences</a></li>
+<li><a href="#conc">Journal as Write Barrier</a></li>
 <li><a href="#thro">Improving Throughput</a></li>
 <li><a href="#rem">Concluding Remarks</a></li>
 </ul>
-<h3><a name="rt"></a>Language Runtimes</h3>
+<h3><a name="rt"></a>Motivation: Hosting Languages</h3>
+<p>Originally inspired by <a href="https://github.com/fitzgen">fitzgen</a>'s article on memory management in <a href="http://fitzgeraldnick.com/weblog/60/">Oxischeme</a>...</p>
 <ul>
 <li>motivation: C/C++ runtimes</li>
 <li>integration issues: pauses, concurrency, GIL</li>
 </ul>
 <h3><a name="gcrust"></a>Garbage Collection and Rust</h3>
-<p>I will not attempt to repeat in entirety that which Felix S Klock has already written on integrating
-garbage collection with Rust.</p>
-<ul>
-<li>stack roots</li>
-<li>heap roots</li>
-<li>tracing</li>
-<li>spidermonkey</li>
-</ul>
+<p>Since <a href="https://github.com/pnkfelix">pnkfelix</a> has <a href="http://blog.pnkfx.org/blog/2015/10/27/gc-and-rust-part-0-how-does-gc-work/">already</a> <a href="http://blog.pnkfx.org/blog/2015/11/10/gc-and-rust-part-1-specing-the-problem/">written</a> <a href="http://blog.pnkfx.org/blog/2016/01/01/gc-and-rust-part-2-roots-of-the-problem/">a thorough</a> overview of the challenges
+involved in integrating a garbage collector with Rust, I will not elaborate on that here.</p>
+<p>Rather than a GC that is tightly coupled to the Rust compiler and runtime, mo-gc is analagous
+to <a href="https://blog.mozilla.org/research/2014/08/26/javascript-servos-only-garbage-collector/">SpiderMonkey's relationship with Servo</a>, in that smart pointers are required to root and
+unroot objects. In order to avoid pausing the mutator, it is not possible to scan the stack
+anyway.</p>
+<p>Further, because we do not have type maps to rely on, every object that wishes to participate
+in being GC managed must implement a trait:</p>
+<table class="highlighttable"><tr><td class="linenos"><div class="linenodiv"><pre>1
+2
+3
+4</pre></div></td><td class="code"><div class="highlight"><pre><span></span><span class="k">trait</span><span class="w"> </span><span class="n">Trace</span><span class="w"> </span><span class="p">{</span><span class="w"></span>
+<span class="w">    </span><span class="k">fn</span><span class="w"> </span><span class="n">traversible</span><span class="p">(</span><span class="o">&amp;</span><span class="bp">self</span><span class="p">)</span><span class="w"> </span><span class="o">-&gt;</span><span class="w"> </span><span class="kt">bool</span><span class="p">;</span><span class="w"></span>
+<span class="w">    </span><span class="k">fn</span><span class="w"> </span><span class="n">trace</span><span class="p">(</span><span class="o">&amp;</span><span class="bp">self</span><span class="p">,</span><span class="w"> </span><span class="n">stack</span><span class="o">:</span><span class="w"> </span><span class="o">&amp;</span><span class="k">mut</span><span class="w"> </span><span class="n">TraceStack</span><span class="p">);</span><span class="w"></span>
+<span class="p">}</span><span class="w"></span>
+</pre></div>
+</td></tr></table>
+
+<p>The GC thread does not know the absolute type of every object it is managing so these methods,
+when called from the GC thread, are inevitably virtual function calls.</p>
+<p>The <code>traversible()</code> method must return <code>true</code> if the object may refer to other GC-managed objects.
+This method is called from the mutator and the value passed through the journal to the GC. This
+is an optimization that allows the GC to avoid making the call to <code>trace()</code> if the <code>TRAVERSIBLE</code>
+bit is not set, saving an unnecessary virtual function call. On the mutator side, since the type
+is known at compile-time and the return value of <code>traversible()</code> is a literal, the function call
+can be largely optimized away.</p>
+<p>The <code>trace()</code> method takes a parameter of type <code>TraceStack</code> which, as its name implies, is the
+stack of objects buffered for tracing. The <code>trace()</code> method should call <code>stack.push(object)</code> for
+every object that it refers to.</p>
+<p>The implementation of <code>trace()</code>, since it is called from the GC thread concurrently with the
+mutator running, must be thread safe and ideally present a consistent snapshot of the state of
+the data structure.</p>
 <h3><a name="inmo"></a>Inside mo-gc</h3>
+<p>"snapshot-at-beginning"</p>
 <p>Since the journal is a form of write barrier, where every rooting, unrooting and new object must
 be journaled, it is undoubtable that overall, this implementation is less efficient than an
 incremental, generational garbage collector where a write barrier is also required, which in turn
@@ -201,7 +229,9 @@ dependent on the use-case.</p>
 <p>Use-after-free conditions detailed in the next section.</p>
 </li>
 </ol>
-<h3><a name="conc"></a>Premature Object Deallocation</h3>
+<h3><a name="conc"></a>Journal as Write Barrier</h3>
+<p>The limitations of the journal as a write barrier are evident in two premature object deallocation
+scenarios.</p>
 <h4>The First</h4>
 <p>There is a use-after-free condition in the current implementation where, during the mark phase of
 collection, the mutator reads a pointer from the heap, roots it, and then overwrites the
@@ -228,7 +258,7 @@ as that itself is a mark phase and we then need to repeat the operation potentia
 <li>the GC enters the sweep phase, dropping <code>LittleCatB</code> all the way through <code>LittleCatZ</code></li>
 </ol>
 <p>This is essentially a similar type of problem that <a href="https://engineering.heroku.com/blogs/2015-02-04-incremental-gc/">incremental garbage collectors</a> solve with
-three-color marking and <a href="https://developer.mozilla.org/en-US/docs/Mozilla/Projects/SpiderMonkey/Internals/Garbage_collection">write barriers</a> on objects.</p>
+tri-color marking and <a href="https://developer.mozilla.org/en-US/docs/Mozilla/Projects/SpiderMonkey/Internals/Garbage_collection">write barriers</a> on objects.</p>
 <p>It may be that an additional form of write barrier on each object that marks it 'grey' when
 a reference to it is mutated can solve this problem.</p>
 <h4>The Second</h4>
@@ -285,27 +315,22 @@ purpose: a radix trie. It is not clear what magnitude of potential speedup is av
 common with mo-gc, is a Judy array, though it's complexity and apparent inflexibility may be
 prohibitive.</p>
 <h3><a name"rem"></a>Concluding Remarks</h3>
-<p>It is my hope that with sufficient optimization, mo-gc or a future relative might be taken
-seriously as a foundational component of language runtimes hosted in Rust.</p>
 <p>The throughput issue currently makes it a non-contender except perhaps for low allocation-intensity
 applications but with the appropriate data structure I believe it can be addressed.</p>
 <p>The mark/journal race condition can be designed around but the fact that it prevents this from
 being used as a fully general-purpose GC will hinder this project unless it can be solved.</p>
-<h1>References</h1>
+<h1>Related Work</h1>
 <ul>
-<li><a href="http://researcher.watson.ibm.com/researcher/files/us-bacon/Bacon03Pure.pdf">Bacon2003</a> Bacon et al, A Pure Reference Counting Garbage Collector</li>
 <li><a href="http://www.cs.virginia.edu/~cs415/reading/bacon-garbage.pdf">Bacon2004</a> Bacon et al, A Unified Theory of Garbage Collection</li>
 <li><a href="http://www.hboehm.info/gc/tree.html">bdwgc</a> Boehm-Demers-Weiser GC: Two-Level Tree Structure for Fast Pointer Lookup</li>
-<li><a href="http://aturon.github.io/blog/2015/08/27/epoch/">crossbeam</a> Aaron Turon, Lock-freedom without garbage collection</li>
-<li><a href="http://fitzgeraldnick.com/weblog/60/">Oxischeme</a> Nick Fitzgerald, Memory Management in Oxischeme</li>
+<li><a href="http://felix-lang.org/share/src/packages/gc.fdoc">felix-lang</a> Felix programming language garbage collector</li>
 <li><a href="https://github.com/Manishearth/rust-gc">Manishearth/rust-gc</a> Manish Goregaokar, rust-gc project</li>
-<li><a href="https://github.com/michaelwoerister/rs-persistent-datastructures">michaelwoerister/rs-persistent-datastructures</a> Michael Woerister, HAMT in Rust</li>
+<li><a href="http://fitzgeraldnick.com/weblog/60/">Oxischeme</a> Nick Fitzgerald, Memory Management in Oxischeme</li>
 <li><a href="http://blog.rust-lang.org/2015/08/14/Next-year.html">Rust blog</a> Rust in 2016</li>
 <li><a href="https://github.com/rust-lang/rust/pull/11399">rust-lang/rust#11399</a> Add garbage collector to std::gc</li>
 <li><a href="https://github.com/rust-lang/rfcs/issues/415">rust-lang/rfcs#415</a> Garbage collection</li>
 <li><a href="https://github.com/rust-lang/rust/issues/2997">rust-lang/rust#2997</a> Tracing GC in rust</li>
 <li><a href="https://blog.mozilla.org/research/2014/08/26/javascript-servos-only-garbage-collector/">Servo</a> Servo blog, JavaScript: Servo’s only garbage collector</li>
-<li><a href="https://www.youtube.com/watch?v=QcwyKLlmXeY">Shenandoah</a> Shenandoah, a low-pause GC for the JVM</li>
 </ul>
     </div>
 
@@ -318,9 +343,13 @@ being used as a fully general-purpose GC will hinder this project unless it can 
         <div class="pure-g post-footer">
             <div class="pure-u-1 pure-u-md-1-2">
                 <div class="pure-g poster-info">
+                    <div class="pure-u">
+                        <a href="/author/peter-liniker.html"><img src="" alt=""></a>
+                    </div>
                     <div class="pure-u-3-4">
                         <h3 class="author-name"><a href="/author/peter-liniker.html">Peter Liniker</a></h3>
                         <p class="author-description">
+                          If you think without writing, you only think you're thinking. - Leslie Lamport.
                         </p>
                     </div>
                 </div>
