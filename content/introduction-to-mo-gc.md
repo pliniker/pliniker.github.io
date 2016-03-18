@@ -33,7 +33,7 @@ written in Rust.**
 * [Using mo-gc](#usemo)
 * [Implementing Data Structures](#ds)
 * [Summary of Results](#res)
-* [Journal as Write Barrier](#conc)
+* [Incoherence](#conc)
 * [Improving Throughput](#thro)
 * [Concluding Remarks](#rem)
 
@@ -50,6 +50,10 @@ Mo-gc is motivated by the safety benefits of Rust over C and C++ to explore a pr
 language runtime written in Rust. Having familiar and attractive dynamic or scripting languages
 written in Rust may lead to wider Rust adoption, spreading the safety.
 
+
+
+### <a name="gcrust"></a>Garbage Collection and Rust
+
 The primary barrier is the current lack of Rust compiler awareness of garbage collection needs.
 It is understood that this is in the research phase and that some proposals may be released
 [this year][5].
@@ -58,14 +62,11 @@ Partially because it is not available but also somewhat to keep a runtime as
 unobtrusive and as unpervasive as possible, mo-gc chooses to avoid the use of GC support and to
 avoid implementing the common technique of stop-the-world stack-scanning.
 
+Since [pnkfelix][23] has [already][14] [written][15] [a thorough][16] introduction to the
+challenges involved in integrating a garbage collector with Rust, I will not elaborate on that
+here.
 
-
-### <a name="gcrust"></a>Garbage Collection and Rust
-
-Since [pnkfelix][23] has [already][14] [written][15] [a thorough][16] overview of the challenges
-involved in integrating a garbage collector with Rust, I will not elaborate on that here.
-
-On the one hand, we have decided not to be reliant on possible compiler GC support.
+On the one hand, we have decided not to be reliant on non-existent compiler GC support.
 
 On the other hand, we do not necessarily want memory management that is too distant from the host
 language. [Oxischeme][3] is hosted in Rust and has an [arena based mark-and-sweep][25] garbage
@@ -105,8 +106,7 @@ stack of objects buffered for tracing. The `trace()` method should call `stack.p
 every object that it refers to.
 
 The implementation of `trace()`, since it is called from the GC thread concurrently with the
-mutator running, must be thread safe and ideally present a consistent snapshot of the state of
-the data structure.
+mutator running, must be thread safe. Any mechanism may be used, even locks if necessary.
 
 
 
