@@ -1049,6 +1049,40 @@ div.pagination {
 }
 
 
+table {
+    tr {
+        border: 1px solid #666;
+        padding: 10px;
+    }
+    td {
+        border: 1px solid #666;
+        padding: 10px;
+    }
+    th {
+        border: 1px solid #444;
+        padding: 10px;
+    }
+    border: 1px solid #444;
+    padding: 15px;
+}
+
+table.highlighttable {
+    tr {
+        padding: 0px;
+        border: 0px;
+    }
+    td {
+        padding: 0px;
+        border: 0px;
+    }
+    th {
+        padding: 0px;
+        border: 0px;
+    }
+    padding: 0px;
+    border: 0px;
+}
+
 
 /* pygments */
 .highlight {
