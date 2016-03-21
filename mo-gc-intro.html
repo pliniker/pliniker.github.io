@@ -1,7 +1,7 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-        <title>An Experiment in Garbage Collection in Rust</title>
+        <title>An Experiment in Garbage Collection</title>
         <meta charset="utf-8" />
         <meta name="viewport" content="width=device-width, initial-scale=1" />
         <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/pure/0.6.0/pure-min.css" />
@@ -47,7 +47,7 @@
 
             <div class="background-image-small">
                 <div class="title-container">
-                    <h1>An Experiment in Garbage Collection in Rust</h1>
+                    <h1>An Experiment in Garbage Collection</h1>
                 </div>
             </div>
         </div>
@@ -75,28 +75,30 @@ Rust that does not depend on rustc, Rust runtime or LLVM awareness of a GC.</p>
 <li><a href="#usemo">Using mo-gc</a></li>
 <li><a href="#ds">Implementing Data Structures</a></li>
 <li><a href="#res">Summary of Results</a></li>
-<li><a href="#conc">Incoherence</a></li>
-<li><a href="#thro">Improving Throughput</a></li>
+<li><a href="#conc">Coherence</a></li>
+<li><a href="#thro">Throughput</a></li>
 <li><a href="#rem">Concluding Remarks</a></li>
+<li><a href="#read">Further Reading</a></li>
 </ul>
 <h3><a name="rt"></a>Motivation: Hosting Languages</h3>
 <p>If a higher level programming language is not hosted in itself, there is a very high chance that
 it is written in C or C++. By a degree of necessity, lower level interaction or optimized
-extensionswith those runtimes must also be in C or C++, perpetuating the pervasiveness of
+extensions of those runtimes must also be in C or C++, perpetuating the pervasiveness of
 these two languages.</p>
 <p>Mo-gc is motivated by the safety benefits of Rust over C and C++ to explore a programming
 language runtime written in Rust. Having familiar and attractive dynamic or scripting languages
 written in Rust may lead to wider Rust adoption, spreading the safety.</p>
+<p>A garbage collector is a fundamental requirement for most languages. It makes some sense to begin
+there rather than deferring the problem of memory management.</p>
 <h3><a name="gcrust"></a>Garbage Collection and Rust</h3>
-<p>The primary barrier is the current lack of Rust compiler awareness of garbage collection needs.
-It is understood that this is in the research phase and that some proposals may be released
-<a href="http://blog.rust-lang.org/2015/08/14/Next-year.html">this year</a>.</p>
+<p>As <a href="https://github.com/pnkfelix">pnkfelix</a> has <a href="http://blog.pnkfx.org/blog/2015/10/27/gc-and-rust-part-0-how-does-gc-work/">already</a> <a href="http://blog.pnkfx.org/blog/2015/11/10/gc-and-rust-part-1-specing-the-problem/">written</a> <a href="http://blog.pnkfx.org/blog/2016/01/01/gc-and-rust-part-2-roots-of-the-problem/">a thorough</a> introduction to the
+challenges involved in integrating a garbage collector with Rust, I will not repeat what I
+cannot improve on. The primary barrier to writing an effective garbage collector in and/or for Rust
+is the current lack of Rust compiler awareness of garbage collection needs. It is understood that
+this is in the research phase and that some proposals may be announced <a href="http://blog.rust-lang.org/2015/08/14/Next-year.html">this year</a>.</p>
 <p>Partially because it is not available but also somewhat to keep a runtime as
-unobtrusive and as unpervasive as possible, mo-gc chooses to avoid the use of GC support and to
-avoid implementing the common technique of stop-the-world stack-scanning.</p>
-<p>Since <a href="https://github.com/pnkfelix">pnkfelix</a> has <a href="http://blog.pnkfx.org/blog/2015/10/27/gc-and-rust-part-0-how-does-gc-work/">already</a> <a href="http://blog.pnkfx.org/blog/2015/11/10/gc-and-rust-part-1-specing-the-problem/">written</a> <a href="http://blog.pnkfx.org/blog/2016/01/01/gc-and-rust-part-2-roots-of-the-problem/">a thorough</a> introduction to the
-challenges involved in integrating a garbage collector with Rust, I will not elaborate on that
-here.</p>
+unobtrusive and as lightweight as possible, mo-gc chooses to avoid the use of GC support. Most
+notably this means avoiding the standard technique of stop-the-world stack-scanning.</p>
 <p>On the one hand, we have decided not to be reliant on non-existent compiler GC support.</p>
 <p>On the other hand, we do not necessarily want memory management that is too distant from the host
 language. <a href="http://fitzgeraldnick.com/weblog/60/">Oxischeme</a> is hosted in Rust and has an <a href="https://github.com/fitzgen">arena based mark-and-sweep</a> garbage
@@ -111,7 +113,7 @@ in being GC managed must implement a trait:</p>
 <table class="highlighttable"><tr><td class="linenos"><div class="linenodiv"><pre>1
 2
 3
-4</pre></div></td><td class="code"><div class="highlight"><pre><span></span><span class="k">trait</span><span class="w"> </span><span class="n">Trace</span><span class="w"> </span><span class="p">{</span><span class="w"></span>
+4</pre></div></td><td class="code"><div class="highlight"><pre><span></span><span class="k">unsafe</span><span class="w"> </span><span class="k">trait</span><span class="w"> </span><span class="n">Trace</span><span class="w"> </span><span class="p">{</span><span class="w"></span>
 <span class="w">    </span><span class="k">fn</span><span class="w"> </span><span class="n">traversible</span><span class="p">(</span><span class="o">&amp;</span><span class="bp">self</span><span class="p">)</span><span class="w"> </span><span class="o">-&gt;</span><span class="w"> </span><span class="kt">bool</span><span class="p">;</span><span class="w"></span>
 <span class="w">    </span><span class="k">fn</span><span class="w"> </span><span class="n">trace</span><span class="p">(</span><span class="o">&amp;</span><span class="bp">self</span><span class="p">,</span><span class="w"> </span><span class="n">stack</span><span class="o">:</span><span class="w"> </span><span class="o">&amp;</span><span class="k">mut</span><span class="w"> </span><span class="n">TraceStack</span><span class="p">);</span><span class="w"></span>
 <span class="p">}</span><span class="w"></span>
@@ -127,10 +129,12 @@ bit is not set, saving an unnecessary virtual function call. On the mutator side
 is known at compile-time and the return value of <code>traversible()</code> is a literal, the function call
 can be largely optimized away.</p>
 <p>The <code>trace()</code> method takes a parameter of type <code>TraceStack</code> which, as its name implies, is the
-stack of objects buffered for tracing. The <code>trace()</code> method should call <code>stack.push(object)</code> for
-every object that it refers to.</p>
+stack of objects buffered for tracing (or the list of gray objects in a tri-color equivalent
+scheme.) The <code>trace()</code> method should call <code>stack.push(object)</code> for every object that it refers to.</p>
 <p>The implementation of <code>trace()</code>, since it is called from the GC thread concurrently with the
-mutator running, must be thread safe. Any mechanism may be used, even locks if necessary.</p>
+mutator running, must be thread safe. Any mechanism may be used, even locks if necessary.
+Because the thread safeness cannot be guaranteed by the compiler, just as with the <code>Sync</code> trait
+<code>Trace</code> is an unsafe trait.</p>
 <h3><a name="inmo"></a>Inside mo-gc</h3>
 <p>Since Rust's borrow mechanism may be used to alleviate unnecessary root reference count
 adjustments (just as an <code>Rc&lt;T&gt;</code> may be borrowed rather than cloned) in real world applications it
@@ -212,7 +216,7 @@ dependent on the use-case.</p>
 </tr>
 <tr>
 <td>2</td>
-<td>50ms pauses every 2048 allocations</td>
+<td>as test 1 but with 50ms pause every 4096 allocations</td>
 </tr>
 </tbody>
 </table>
@@ -233,19 +237,23 @@ dependent on the use-case.</p>
 <td>22,400,000</td>
 <td>1115ms</td>
 <td>10,200,000</td>
-<td>2456ms</td>
+<td>2460ms</td>
 </tr>
 <tr>
 <td>2</td>
 <td>81,000</td>
 <td>30,800ms</td>
-<td>2,100,000</td>
+<td>21,000,000???</td>
 <td>1200ms</td>
 </tr>
 </tbody>
 </table>
 <p>In the first test case, the mutator gets near 100% of a CPU as the GC is not running on all eight
 cores at all times.</p>
+<p>In the second test case, the GC thread requires half the CPU time as in the first test. This is
+partially because when the GC thread sweeps, it must contend with the mutator thread, which may
+be allocationg, for write access to the jemalloc arena. In the second test, contention is far less
+likely than in the first test.</p>
 <h4>Qualitative Summary of Performance</h4>
 <ol>
 <li>
@@ -285,7 +293,7 @@ cores at all times.</p>
 <p>Coherence issues between the mutator and GC threads detailed in the next section.</p>
 </li>
 </ol>
-<h3><a name="conc"></a>Incoherence</h3>
+<h3><a name="conc"></a>Coherence</h3>
 <p>In short, the limitations of the current implementation of the journal as a write barrier are
 the same set of problems that are overcome by an incremental garbage collector's write barrier.</p>
 <h4>Journal as Write Barrier</h4>
@@ -326,7 +334,7 @@ dropped.</p>
 remains.</p>
 <p>The root set must include the object in the mature generation that holds the pointer to the
 young object.</p>
-<h3><a name="thro"></a>Improving Throughput</h3>
+<h3><a name="thro"></a>Throughput</h3>
 <h4>Journal Processing</h4>
 <p>The journal is currently processed in <code>YoungHeap::read_journals()</code> on a single thread only,
 as the object map must be updated or inserted for each journal entry and insertion into
@@ -340,7 +348,7 @@ generation object map. In this case the GC thread pool could process journals in
 when tracing, each mutator thread's root set would be needed to trace all the other
 object maps. This would allow a parallel approach but would be less efficient overall.</p>
 <p>Giving each mutator thread its own young generation may pave the way to integrating a custom
-allocator in a [heap-partitioned][31] design, which will be discussed later.</p>
+allocator in a <a href="http://www.ccs.neu.edu/home/pnkfelix/thesis/klock11-diss.pdf">heap-partitioned</a> design, which will be discussed later.</p>
 <h4>A QoS Approach</h4>
 <p>Most garbage collectors have to pause the mutator periodically, even if for only a few milliseconds.</p>
 <p>If the GC is struggling to keep up with a mutator that is allocating large numbers of objects very
@@ -373,16 +381,32 @@ purpose: a radix trie. It is not clear what magnitude of potential speedup is av
 common with mo-gc, is a Judy array, though it's complexity and apparent inflexibility may be
 prohibitive.</p>
 <h4>Custom Allocator</h4>
-<p>As mentioned in the earlier section <em>Journal Processing</em>, this overal architecture may be
-conducive to a partitioned heap allocator and a [corresponding collection approach][31].</p>
+<p>As mentioned in the earlier section <em>Journal Processing</em>, this overall architecture may be
+conducive to a partitioned-heap allocator and a <a href="http://www.ccs.neu.edu/home/pnkfelix/thesis/klock11-diss.pdf">corresponding collection approach</a>.</p>
+<p>The possible advantages could be:</p>
+<ul>
+<li>
+<p>Rotating journal buffers is already analagous to rotating heap partitions. Integrating the
+  journal with a partitioned-heap allocation buffer per mutator thread may increase the efficiency
+  both on the mutator and the GC thread sides.</p>
+</li>
+<li>
+<p>Sweeping only allocation buffers that are not being allocated to by a mutator would reduce thread
+  contention: the current implementation on top of mo-gc can create contention between the sweep
+  phase and the mutator when the mutator is allocating and the sweeper is dropping.</p>
+</li>
+</ul>
+<p>The downside of such an allocator is that since we cannot do heap compaction we will have to
+take fragmentation into account when considering total memory use.</p>
 <h3><a name"rem"></a>Concluding Remarks</h3>
-<p>The coherency and throughput issues make the current implementation impractical for use.</p>
-<h1>Related Work</h1>
+<p>The coherency and throughput issues make the current implementation impractical for use and must
+be addressed.</p>
+<h1><a name="read"></a>Further Reading</h1>
 <ul>
 <li><a href="http://www.cs.virginia.edu/~cs415/reading/bacon-garbage.pdf">Bacon2004</a> Bacon et al, A Unified Theory of Garbage Collection</li>
-<li><a href="http://www.hboehm.info/gc/tree.html">bdwgc</a> Boehm-Demers-Weiser GC: Two-Level Tree Structure for Fast Pointer Lookup</li>
+<li><a href="http://www.hboehm.info/gc/tree.html">bdwgc</a> Boehm-Demers-Weiser GC, Two-Level Tree Structure for Fast Pointer Lookup</li>
 <li><a href="http://felix-lang.org/share/src/packages/gc.fdoc">felix-lang</a> Felix programming language garbage collector</li>
-<li><a href="http://www.ccs.neu.edu/home/pnkfelix/thesis/klock11-diss.pdf">Klock2011</a> Felix S Klock II: Scalable Garbage Collection via Remembered Set
+<li><a href="http://www.ccs.neu.edu/home/pnkfelix/thesis/klock11-diss.pdf">Klock2011</a> Felix S Klock II, Scalable Garbage Collection via Remembered Set
   Summarization and Refinement</li>
 <li><a href="https://github.com/Manishearth/rust-gc">rust-gc</a> Manish Goregaokar, rust-gc project</li>
 <li><a href="http://fitzgeraldnick.com/weblog/60/">Oxischeme</a> Nick Fitzgerald, Memory Management in Oxischeme</li>
