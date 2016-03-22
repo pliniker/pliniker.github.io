@@ -35,7 +35,7 @@ written in Rust.**
 * [Summary of Results](#res)
 * [Coherence](#conc)
 * [Throughput](#thro)
-* [Concluding Remarks](#rem)
+* [Next Directions](#rem)
 * [Further Reading](#read)
 
 
@@ -77,7 +77,8 @@ runtime it is integrated with, but far less ergonomic for more general use in Ru
 
 As a consequence, mo-gc is analagous to [SpiderMonkey's relationship with Servo][13], in that
 smart pointers are required to root and unroot objects. Some ergonomics are sacrificed here, but
-the tradeoff is established and currently accepted in Servo.
+the tradeoff is established and currently accepted in Servo. A further benefit is that
+GC-managed objects and pure Rust compile-time managed objects are clearly delineated.
 
 
 #### Tracing Concurrently
@@ -189,15 +190,15 @@ Some rudimentary results, conducted on an 8-core Xeon E3-1271, are listed below:
 | Test | Allocs/sec | Mut wall-clock | GC deallocs/sec | GC CPU time |
 |------|------------|----------------|-----------------|-------------|
 | 1    | 22,400,000 | 1115ms         | 10,200,000      | 2460ms      |
-| 2    | 81,000     | 30,800ms       | 21,000,000???   | 1200ms      |
+| 2    | 81,000     | 30,800ms       | 2,000,000       | 1200ms      |
 
 In the first test case, the mutator gets near 100% of a CPU as the GC is not running on all eight
 cores at all times.
 
-In the second test case, the GC thread requires half the CPU time as in the first test. This is
-partially because when the GC thread sweeps, it must contend with the mutator thread, which may
-be allocationg, for write access to the jemalloc arena. In the second test, contention is far less
-likely than in the first test.
+The second test shows a GC performance of 20% that in the first test. This is due to the
+lack of tuning of when a collection should occur. Currently a collection is made every time
+the journal returns non-empty, but in test 2 the number of journal entries per collection
+is low.
 
 
 #### Qualitative Summary of Performance
@@ -236,8 +237,9 @@ likely than in the first test.
 
 ### <a name="conc"></a>Coherence
 
-In short, the limitations of the current implementation of the journal as a write barrier are
-the same set of problems that are overcome by an incremental garbage collector's write barrier.
+In brief, the limitations of the current implementation of the journal as a write barrier as
+described below are the same set of problems that are overcome by an incremental garbage
+collector's write barrier.
 
 
 #### Journal as Write Barrier
@@ -272,8 +274,15 @@ The problem that must be solved looks like this:
 This is essentially a similar type of problem that [incremental garbage collectors][19] solve with
 tri-color marking and [write barriers][20] on objects.
 
-It may be that an additional form of write barrier on each object that marks it 'grey' when
-a reference to it is mutated can solve this problem.
+We need a synchronization point other than the reference count journal. A secondary write
+barrier, a sequential store buffer, may fulfill this function. It may be necessary to make
+writes to the SSB blocking while the mark phase is draining it.
+
+This write barrier must send the pointer value that the mutator is about to overwrite to the SSB.
+
+Additionally, a bit in the pointed-at object header might be set so that the mutator can avoid
+the SSB overhead if it needs to send that object through the write barrier again. The sweep phase
+would be responsible for resetting the flag - a gray flag.
 
 
 #### The Remembered Set
@@ -283,12 +292,11 @@ young generation, that mature object root is insufficient in the current impleme
 the young object. The young object, if not reachable only in the young generation, will be
 dropped.
 
-In this case, an additional write barrier will only delay the drop but the inherent problem
-remains.
+A further write barrier feature must generate a reliable remembered set.
 
-The root set must include the object in the mature generation that holds the pointer to the
-young object.
+Without a custom allocator, this cannot be optimized into a card table.
 
+With a custom allocator, the remembered set can be maintained per arena.
 
 
 ### <a name="thro"></a>Throughput
@@ -311,6 +319,10 @@ object maps. This would allow a parallel approach but would be less efficient ov
 
 Giving each mutator thread its own young generation may pave the way to integrating a custom
 allocator in a [heap-partitioned][26] design, which will be discussed later.
+
+Currently, two words are written to the journal for every entry. The second word is the vtable,
+which is unnecessary overhead. The vtable could be added to an object header, making journal
+entries only one word.
 
 
 #### A QoS Approach
@@ -347,14 +359,10 @@ array being uncompressed.
 Alternatively, the bitmapped trie might be replaced with a data structure more typical for this
 purpose: a radix trie. It is not clear what magnitude of potential speedup is available here.
 
-Another alternative used in the [Felix][18] language garbage collector, which has somewhat in
-common with mo-gc, is a Judy array, though it's complexity and apparent inflexibility may be
-prohibitive.
-
 
 #### Custom Allocator
 
-As mentioned in the earlier section _Journal Processing_, this overall architecture may be
+As mentioned in the section _Journal Processing_, this overall architecture may be
 conducive to a partitioned-heap allocator and a [corresponding collection approach][26].
 
 The possible advantages could be:
@@ -372,26 +380,28 @@ take fragmentation into account when considering total memory use.
 
 
 
-### <a name"rem"></a>Concluding Remarks
+### <a name"rem"></a>Next Directions
 
 The coherency and throughput issues make the current implementation impractical for use and must
 be addressed.
 
+The summary of options to investigate is:
+
+* Partitioned heap: arena allocator with per-arena sequential store buffers; per-arena journals?
+* Mark one arena at a time; mark is complete when tracing roots is complete and SSB is empty.
+* Journal efficiency: one word per entry instead of two, move vtable to object header.
+* Explore alternatives to bitmaptrie for root set: a random-access heap data structure? Rust's
+  BTreeMap?
 
 
 # <a name="read"></a>Further Reading
 
 * [Bacon2004][2] Bacon et al, A Unified Theory of Garbage Collection
 * [bdwgc][17] Boehm-Demers-Weiser GC, Two-Level Tree Structure for Fast Pointer Lookup
-* [felix-lang][18] Felix programming language garbage collector
 * [Klock2011][26] Felix S Klock II, Scalable Garbage Collection via Remembered Set
   Summarization and Refinement
-* [rust-gc][4] Manish Goregaokar, rust-gc project
 * [Oxischeme][3] Nick Fitzgerald, Memory Management in Oxischeme
 * [Rust blog][5] Rust in 2016
-* [rust-lang/rust#11399][6] Add garbage collector to std::gc
-* [rust-lang/rfcs#415][7] Garbage collection
-* [rust-lang/rust#2997][8] Tracing GC in rust
 * [Servo][13] Servo blog, JavaScript: Servo’s only garbage collector
 
 [1]: http://researcher.watson.ibm.com/researcher/files/us-bacon/Bacon03Pure.pdf
