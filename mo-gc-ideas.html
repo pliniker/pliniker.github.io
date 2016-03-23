@@ -1,0 +1,152 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+        <title>Ideas to try in mo-gc</title>
+        <meta charset="utf-8" />
+        <meta name="viewport" content="width=device-width, initial-scale=1" />
+        <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/pure/0.6.0/pure-min.css" />
+        <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/pure/0.6.0/grids-responsive-min.css" />
+        <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/4.4.0/css/font-awesome.min.css" />
+        <link rel="stylesheet" href="/theme/css/main.css" />
+</head>
+<body>
+
+    <div class="main-nav-container">
+
+        <div class="pure-g">
+            <div class="pure-u-1 pure-u-lg-2-3">
+                <div class="main-nav">
+                    <ul class="main-nav-list">
+                        <li class="main-nav-item"><a href="/" class="pure-menu-link">TL;DR</a></li>
+
+                        <li class="main-nav-item active"><a href="/category/rust.html" class="pure-menu-link">Rust</a></li>
+                    </ul>
+                </div>
+             </div>
+
+             <div class="pure-u-1 pure-u-lg-1-3"></div>
+        </div>
+
+    </div>
+
+
+<div class="page-container">
+    <div class="entry-content">
+        <div class="post-meta pure-g">
+            <div class="pure-u-3-4 meta-data">
+                <a href="/category/rust.html" class="category">Rust</a><br />
+
+                <a class="author" href="/author/peter-liniker.html">Peter Liniker</a>
+                &mdash; <abbr title="2016-03-23T21:00:00-04:00">Wed 23 March 2016</abbr>
+            </div>
+        </div>
+    </div>
+
+    <div class="article-header-container">
+        <div class="background-image-container">
+
+            <div class="background-image-small">
+                <div class="title-container">
+                    <h1>Ideas to try in mo-gc</h1>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <div class="entry-content">
+        <h1>Mo-gc Ideas</h1>
+<h2>Arenas</h2>
+<p>Object sizes should be fixed to one size fits all types (yes, wasteful, but easier than dealing
+with fragmentation up front.)</p>
+<p>This is like Ruby's allocator. Similarly, there are bit fields for marking and object presence.</p>
+<p>Objects are marked black on allocation, making this a snapshot-at-beginning structure.</p>
+<p>Arenas have additional data structures that are updated by a write barrier. The write barrier
+may additionally block the mutator if the arena being updated requires synchronization with
+the mutator.</p>
+<h3>Sequential Store Buffer</h3>
+<p>Each arena gets it's own SSB for objects that may be missed during tracing.</p>
+<p>Every pointer value that is overwritten is pushed on to the SSB of the arena it is associated
+with.</p>
+<h3>Remembered Set</h3>
+<p>Every arena has a remembered set to store references to objects in other arenas that may point
+to objects in this arena.</p>
+<p>Every object that has another pointer written to it is added to the remembered set for the
+arena that the pointer is associated with.</p>
+<h2>Phases</h2>
+<p>Each arena iterates through three phases. It can only be in one phase at any time.</p>
+<h3>Mutator/Allocation</h3>
+<p>During this phase, the arena can only receive new objects, it cannot be marked or swept. The
+arena-local heap structure is mutable in both objects allocated and object relationships.</p>
+<table>
+<thead>
+<tr>
+<th>Invariant:</th>
+</tr>
+</thead>
+<tbody></tbody>
+</table>
+<h3>Marking</h3>
+<p>Marking can only be done on an arena not in allocation or sweeping. The mutator may update
+relationships betwen objects in the arena during this phase.</p>
+<p>The roots, SSB and remembered set must be traced to find live objects in the arena.</p>
+<table>
+<thead>
+<tr>
+<th>Invariant: every live object must be discovered. All white objects that the mutator may add a reference to from a black or gray object during tracing must be marked.</th>
+</tr>
+</thead>
+<tbody></tbody>
+</table>
+<p>As a result of this invariant, the GC must synchronize with the mutator during this phase.
+Once the roots have been traced, the SSB and remembered set are frozen and traced, blocking any
+mutator thread that has triggered a write barrier that will add to the SSB or remembered set.</p>
+<p>Any blocked mutators are unblocked once the mark phase has completed.</p>
+<h3>Sweeping</h3>
+<p>Sweeping can be done on every arena that is in neither allocation nor marking phases. This means
+that no new objects can be allocated in it at this time, but live objects may still be mutated.</p>
+<table>
+<thead>
+<tr>
+<th>Invariant: every object that is live must be marked.</th>
+</tr>
+</thead>
+<tbody></tbody>
+</table>
+<p>Only unmarked objects will be deallocated.</p>
+<p>Once an arena has been swept it is returned to the allocation phase.</p>
+    </div>
+
+    <footer>
+        <div class="tags">
+            <a href="/tag/mo-gc.html">mo-gc</a>
+            <a href="/tag/rust.html">rust</a>
+            <a href="/tag/gc.html">gc</a>
+        </div>
+        <div class="pure-g post-footer">
+            <div class="pure-u-1 pure-u-md-1-2">
+                <div class="pure-g poster-info">
+                    <div class="pure-u">
+                        <a href="/author/peter-liniker.html"><img src="" alt=""></a>
+                    </div>
+                    <div class="pure-u-3-4">
+                        <h3 class="author-name"><a href="/author/peter-liniker.html">Peter Liniker</a></h3>
+                        <p class="author-description">
+                          If you think without writing, you only think you're thinking. - Leslie Lamport.
+                        </p>
+                    </div>
+                </div>
+            </div>
+
+
+
+        </div>
+
+
+    </footer>
+
+
+</div>
+
+
+</body>
+</html>
