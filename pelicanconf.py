@@ -23,7 +23,7 @@ AUTHOR_FEED_RSS = None
 # Blogroll
 LINKS = (('Github', 'https://github.com/pliniker/'),)
 
-DEFAULT_PAGINATION = 1
+DEFAULT_PAGINATION = 13
 
 # Uncomment following line if you want document-relative URLs when developing
 #RELATIVE_URLS = True
