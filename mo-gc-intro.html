@@ -54,15 +54,16 @@
     </div>
 
     <div class="entry-content">
-        <p><strong>Preliminary results for <a href="https://github.com/pliniker/mo-gc">mo-gc</a>, a garbage collector
+        <p><strong>Interim results for <a href="https://github.com/pliniker/mo-gc">mo-gc</a>, a garbage collector
 written in Rust.</strong></p>
 <blockquote>
-<p>Mo-gc avoids pausing the mutator to scan the stack by writing stack root reference count
+<p>Mo-gc is an experiment in garbage collection written in the Rust programming language.</p>
+<p>Instead of scanning the stack, the mutator writes reference count
 increments and decrements to a journal. The journal is read concurrently by a garbage
 collection thread that keeps a map of objects and their absolute reference counts. The object
 map is divided into young and mature generations and collection is done with parallellized
 mark and sweep phases.</p>
-<p>The journal is an extension of a type snapshot-at-beginning write barrier and this project
+<p>The journal is a type of snapshot-at-beginning write barrier and this project
 is an experiment in the feasibility, limitations and scalability of this approach.</p>
 <p>A second aspect of the experiment is to gauge the possible performance of a GC in and for
 Rust that does not depend on rustc, Rust runtime or LLVM awareness of a GC.</p>
@@ -137,16 +138,38 @@ mutator running, must be thread safe. Any mechanism may be used, even locks if n
 Because the thread safeness cannot be guaranteed by the compiler, just as with the <code>Sync</code> trait
 <code>Trace</code> is an unsafe trait.</p>
 <h3><a name="inmo"></a>Inside mo-gc</h3>
-<p>Since Rust's borrow mechanism may be used to alleviate unnecessary root reference count
-adjustments (just as an <code>Rc&lt;T&gt;</code> may be borrowed rather than cloned) in real world applications it
-is possible that the journal write barrier effect may be lessened.</p>
-<ul>
-<li>journal</li>
-<li>bitmaptrie</li>
-<li>generational</li>
-<li>parallel mark and sweep</li>
-</ul>
+<h4>The Journal</h4>
+<p>The journal behaves as a non-blocking unbounded queue. It is implemented as an unbounded series
+of one-shot single-writer SPSC buffers, making it very fast.</p>
+<p>Testing on a Xeon E3-1271 gives a throughput of about 500 million two-word objects per second.</p>
+<p>Reference count increments from the journal are read into a heap map while decrements are pushed
+into a buffer to be applied after the current collection cycle is complete. This is what
+fundamentally makes this GC design snapshot-at-beginning.</p>
+<h4>The Heap Maps</h4>
+<p>Each heap map - young and mature generation - is implemented using a bitmapped vector trie. This
+gives access of <code>O(log 32)</code> on 32 bit systems and <code>O(log 64)</code> on 64 bit systems, though on 64 bit
+systems the trie depth can be greater than on 32 bit systems.</p>
+<p>This bitmapped trie can be sharded into sub-tries, each of which can be borrowed by a thread in
+a scoped thread context. Each shard can be structurally mutated in parallel with the other shards.</p>
+<h5>The Young Generation</h5>
+<p>The young generation heap map doubles as the root set reference count map. Collecting the young
+generation is done by sharding the map into at least as many parts as there are CPUs available
+to parallelize tracing. Each shard is scanned for roots, which are non-zero reference counted
+objects and all non-newly-allocated objects. They form the first set of gray objects, which are
+traced to find more gray objects to add to the trace stack.</p>
+<p>There are two distinct categories of objects in the young generation map: reference counted
+mature objects and newly allocated objects. Only newly allocated object entries are candidates for
+sweeping.</p>
+<h5>Parallelism</h5>
+<p>Each thread has it's own trace stack, minimizing synchronziation between threads, but making it
+possible that two or more threads might attempt to trace the same object concurrently. That is
+not inherently a problem.</p>
+<p>Both marking and sweeping are multi-threaded, with work spread across all available CPUs by default.</p>
+<p>For marking, the root set is sharded across a thread pool and the heap is concurrently marked,
+while for sweeping, the heap is sharded across the thread pool with each shard being swept
+concurrently with others.</p>
 <h3><a name="usemo"></a>Using mo-gc</h3>
+<p>Usage is superficially straightforward, excepting the coherence issues detailed later.</p>
 <table class="highlighttable"><tr><td class="linenos"><div class="linenodiv"><pre> 1
  2
  3
@@ -188,8 +211,8 @@ is possible that the journal write barrier effect may be lessened.</p>
 </td></tr></table>
 
 <h3><a name="ds"></a>Implementing Data structures</h3>
-<p>Use of <code>Gc</code> should be reasonably straightforward. Describe a Vec, tree, queue?</p>
-<p>Use of <code>GcAtomic</code> is more speculative.</p>
+<p>Because of coherence issues detailed later, it is not yet appropriate to experiment with complex
+data structures.</p>
 <h3><a name="res"></a>Summary of Results</h3>
 <h4>Measures</h4>
 <p>Points of general garbage collection interest are:</p>
@@ -266,7 +289,10 @@ is low.</p>
 <li>
 <p>The journal itself is a success and appears to scale, at least on x86(32 and 64). Writing a
    two-word struct to the journal adds roughly 25% to the cost of allocating a 64 byte object on
-   the heap.</p>
+   the heap.<br><br>
+   Since Rust's borrow mechanism may be used to alleviate unnecessary root reference count
+   adjustments (just as an <code>Rc&lt;T&gt;</code> may be borrowed rather than cloned) in real world applications it
+   is possible that the journal write barrier cost may be ameliorated some.</p>
 </li>
 <li>
 <p>The parallel mark and sweep phases and the journal itself are sufficiently performant that the
