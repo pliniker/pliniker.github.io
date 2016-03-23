@@ -8,7 +8,7 @@ Summary: Introduction to mo-gc
 
 
 
-**Preliminary results for [mo-gc](https://github.com/pliniker/mo-gc), a garbage collector
+**Interim results for [mo-gc](https://github.com/pliniker/mo-gc), a garbage collector
 written in Rust.**
 
 > Mo-gc is an experiment in garbage collection written in the Rust programming language.
@@ -119,10 +119,6 @@ Because the thread safeness cannot be guaranteed by the compiler, just as with t
 
 ### <a name="inmo"></a>Inside mo-gc
 
-Since Rust's borrow mechanism may be used to alleviate unnecessary root reference count
-adjustments (just as an `Rc<T>` may be borrowed rather than cloned) in real world applications it
-is possible that the journal write barrier cost may be ameliorated some.
-
 #### The Journal
 
 The journal behaves as a non-blocking unbounded queue. It is implemented as an unbounded series
@@ -131,30 +127,44 @@ of one-shot single-writer SPSC buffers, making it very fast.
 Testing on a Xeon E3-1271 gives a throughput of about 500 million two-word objects per second.
 
 Reference count increments from the journal are read into a heap map while decrements are pushed
-into a buffer to be applied after the current collection cycle is complete. This is a major
-contributor to this GC design being snapshot-at-beginning.
+into a buffer to be applied after the current collection cycle is complete. This is what
+fundamentally makes this GC design snapshot-at-beginning.
 
 
 #### The Heap Maps
 
 Each heap map - young and mature generation - is implemented using a bitmapped vector trie. This
 gives access of `O(log 32)` on 32 bit systems and `O(log 64)` on 64 bit systems, though on 64 bit
-systems the trie depth is greater than on 32 bit systems.
+systems the trie depth can be greater than on 32 bit systems.
+
+This bitmapped trie can be sharded into sub-tries, each of which can be borrowed by a thread in
+a scoped thread context. Each shard can be structurally mutated in parallel with the other shards.
 
 
-#### The Young Generation
+##### The Young Generation
 
 The young generation heap map doubles as the root set reference count map. Collecting the young
 generation is done by sharding the map into at least as many parts as there are CPUs available
-to parallelize tracing on. Each shard is scanned for roots, which are non-zero reference counted
-objects. They form the first set of gray objects, which are traced to find more gray objects to
-add to the trace stack. Each thread has it's own trace stack, making it possible that two or more
-threads might attempt to trace the same object concurrently.
+to parallelize tracing. Each shard is scanned for roots, which are non-zero reference counted
+objects and all non-newly-allocated objects. They form the first set of gray objects, which are
+traced to find more gray objects to add to the trace stack.
+
+There are two distinct categories of objects in the young generation map: reference counted
+mature objects and newly allocated objects. Only newly allocated object entries are candidates for
+sweeping.
 
 
-#### Marking and Sweeping
+##### Parallelism
+
+Each thread has it's own trace stack, minimizing synchronziation between threads, but making it
+possible that two or more threads might attempt to trace the same object concurrently. That is
+not inherently a problem.
 
 Both marking and sweeping are multi-threaded, with work spread across all available CPUs by default.
+
+For marking, the root set is sharded across a thread pool and the heap is concurrently marked,
+while for sweeping, the heap is sharded across the thread pool with each shard being swept
+concurrently with others.
 
 
 ### <a name="usemo"></a>Using mo-gc
@@ -190,6 +200,7 @@ fn main() {
 
 Because of coherence issues detailed later, it is not yet appropriate to experiment with complex
 data structures.
+
 
 
 ### <a name="res"></a>Summary of Results
@@ -239,7 +250,11 @@ is low.
 
 2. The journal itself is a success and appears to scale, at least on x86(32 and 64). Writing a
    two-word struct to the journal adds roughly 25% to the cost of allocating a 64 byte object on
-   the heap.
+   the heap.<br><br>
+   Since Rust's borrow mechanism may be used to alleviate unnecessary root reference count
+   adjustments (just as an `Rc<T>` may be borrowed rather than cloned) in real world applications it
+   is possible that the journal write barrier cost may be ameliorated some.
+
 
 3. The parallel mark and sweep phases and the journal itself are sufficiently performant that the
    throughput bottleneck in the system is very evident: _processing_ the journal into the object map is
