@@ -11,13 +11,15 @@ Summary: Introduction to mo-gc
 **Preliminary results for [mo-gc](https://github.com/pliniker/mo-gc), a garbage collector
 written in Rust.**
 
-> Mo-gc avoids pausing the mutator to scan the stack by writing stack root reference count
+> Mo-gc is an experiment in garbage collection written in the Rust programming language.
+>
+> Instead of scanning the stack, the mutator writes reference count
 > increments and decrements to a journal. The journal is read concurrently by a garbage
 > collection thread that keeps a map of objects and their absolute reference counts. The object
 > map is divided into young and mature generations and collection is done with parallellized
 > mark and sweep phases.
 >
-> The journal is an extension of a type snapshot-at-beginning write barrier and this project
+> The journal is a type of snapshot-at-beginning write barrier and this project
 > is an experiment in the feasibility, limitations and scalability of this approach.
 >
 > A second aspect of the experiment is to gauge the possible performance of a GC in and for
@@ -119,16 +121,45 @@ Because the thread safeness cannot be guaranteed by the compiler, just as with t
 
 Since Rust's borrow mechanism may be used to alleviate unnecessary root reference count
 adjustments (just as an `Rc<T>` may be borrowed rather than cloned) in real world applications it
-is possible that the journal write barrier effect may be lessened.
+is possible that the journal write barrier cost may be ameliorated some.
 
-* journal
-* bitmaptrie
-* generational
-* parallel mark and sweep
+#### The Journal
 
+The journal behaves as a non-blocking unbounded queue. It is implemented as an unbounded series
+of one-shot single-writer SPSC buffers, making it very fast.
+
+Testing on a Xeon E3-1271 gives a throughput of about 500 million two-word objects per second.
+
+Reference count increments from the journal are read into a heap map while decrements are pushed
+into a buffer to be applied after the current collection cycle is complete. This is a major
+contributor to this GC design being snapshot-at-beginning.
+
+
+#### The Heap Maps
+
+Each heap map - young and mature generation - is implemented using a bitmapped vector trie. This
+gives access of `O(log 32)` on 32 bit systems and `O(log 64)` on 64 bit systems, though on 64 bit
+systems the trie depth is greater than on 32 bit systems.
+
+
+#### The Young Generation
+
+The young generation heap map doubles as the root set reference count map. Collecting the young
+generation is done by sharding the map into at least as many parts as there are CPUs available
+to parallelize tracing on. Each shard is scanned for roots, which are non-zero reference counted
+objects. They form the first set of gray objects, which are traced to find more gray objects to
+add to the trace stack. Each thread has it's own trace stack, making it possible that two or more
+threads might attempt to trace the same object concurrently.
+
+
+#### Marking and Sweeping
+
+Both marking and sweeping are multi-threaded, with work spread across all available CPUs by default.
 
 
 ### <a name="usemo"></a>Using mo-gc
+
+Usage is superficially straightforward, excepting the coherence issues detailed later.
 
 ```
 #!rust
@@ -157,10 +188,8 @@ fn main() {
 
 ### <a name="ds"></a>Implementing Data structures
 
-Use of `Gc` should be reasonably straightforward. Describe a Vec, tree, queue?
-
-Use of `GcAtomic` is more speculative.
-
+Because of coherence issues detailed later, it is not yet appropriate to experiment with complex
+data structures.
 
 
 ### <a name="res"></a>Summary of Results
