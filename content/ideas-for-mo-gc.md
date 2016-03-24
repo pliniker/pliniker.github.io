@@ -1,4 +1,4 @@
-Title: Ideas to try in mo-gc
+Title: Write Barrier and Arena Internal Discussion
 Date: 2016-03-23 21:00
 Category: Rust
 Tags: mo-gc, rust, gc
@@ -7,8 +7,20 @@ Authors: Peter Liniker
 Summary: Mo-gc ideas
 
 
+## The Journal
 
-# Mo-gc Ideas
+Is this necessary when other write barriers may suffice? Yes and no.
+
+Given a `GcRoot<Environment>` where objects are added and removed from the `Environment` instance,
+the journal as roots reference counter is largely unneeded. Except for the initial `GcRoot<...>`.
+
+All this is achieving though is pushing the burden of maintaining the root set on to the mutator,
+though it may be the implementation reality for a hosted language.
+
+The journal, then, as a per-mutator SPSC queue of reference count adjustments (though not new
+objects) is basically necessary.
+
+
 
 ## Arenas
 
@@ -17,11 +29,17 @@ with fragmentation up front.)
 
 This is like Ruby's allocator. Similarly, there are bit fields for marking and object presence.
 
-Objects are marked black on allocation, making this a snapshot-at-beginning structure.
-
 Arenas have additional data structures that are updated by a write barrier. The write barrier
 may additionally block the mutator if the arena being updated requires synchronization with
 the mutator.
+
+Do objects need to be marked black or white on allocation?
+
+* Because the journal represents snapshot-at-beginning behavior, new objects should be marked
+  black on allocation.
+* If they are marked white, the write barrier would take effect during the mark phase if a
+  new object is attached to an existing object but otherwise there is nothing to root the object.
+
 
 ### Sequential Store Buffer
 
