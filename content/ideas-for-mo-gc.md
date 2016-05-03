@@ -6,6 +6,7 @@ Slug: mo-gc-ideas
 Authors: Peter Liniker
 Summary: Mo-gc ideas
 
+This page does not describe the full requirements to make `mo-gc` fully operational.
 
 ## The Journal
 
@@ -67,8 +68,8 @@ Each arena iterates through three phases. It can only be in one phase at any tim
 During this phase, the arena can only receive new objects, it cannot be marked or swept. The
 arena-local heap structure is mutable in both objects allocated and object relationships.
 
-| Invariant: |
-|------------|
+| Invariant: ? |
+|--------------|
 
 
 

@@ -8,10 +8,10 @@ Summary: Introduction to mo-gc
 
 
 
-**Interim results for [mo-gc](https://github.com/pliniker/mo-gc), a garbage collector
-written in Rust.**
+**Reinventing Garbage Collection Problems from First Principles by Aiming Way High.**
 
-> Mo-gc is an experiment in garbage collection written in the Rust programming language.
+> [Mo-gc](https://github.com/pliniker/mo-gc) is an experiment in garbage collection written in
+> the Rust programming language.
 >
 > Instead of scanning the stack, the mutator writes reference count
 > increments and decrements to a journal. The journal is read concurrently by a garbage
@@ -20,15 +20,13 @@ written in Rust.**
 > mark and sweep phases.
 >
 > The journal is a type of snapshot-at-beginning write barrier and this project
-> is an experiment in the feasibility, limitations and scalability of this approach.
->
-> A second aspect of the experiment is to gauge the possible performance of a GC in and for
-> Rust that does not depend on rustc, Rust runtime or LLVM awareness of a GC.
+> was an experiment in the feasibility, limitations and scalability of this approach.
 
 
 
 # Contents
 
+* [Irrational Exuberance](#ie)
 * [Motivation: Hosting Languages](#rt)
 * [Garbage Collection and Rust](#gcrust)
 * [Inside mo-gc](#inmo)
@@ -42,19 +40,78 @@ written in Rust.**
 
 
 
+### <a name="ie"></a>Irrational Exuberance, or How This Project Got Started
+
+Early in 2015, Nick Fitzgerald published [Oxischeme][25]. With a general interest in programming
+languages and runtimes and a specific interest in Rust, I had been following Rust's progress
+towards 1.0 with eager anticipation. Oxischeme piqued my curiosity as an interpreter written in a
+language I was betting on seriously learning in the near future.
+
+What quickly became most interesting was that Oxischeme has a [garbage collector][3] written in
+Rust to support memory management in the Scheme interpreter. Nick's article concluded with a
+link to David F. Bacon's (et al) *[A Unified Theory of Garbage Collection][2]*.
+
+This paper was fascinating. I had often wondered at the stark difference in apparent complexity
+between reference counting and tracing collectors and how distant they seemed from each other
+yet had the same ultimate aims.  This paper made the world smaller, so to speak.
+
+Given that David F. Bacon is credited with successful garbage collectors based around some
+form of reference counting and given his *Unified Theory*, I decided I could ignore the poor
+reputation of reference counting and contemplate it without feeling like it was a well
+explored dead end in memory management.
+
+At the end of a week of being highly distracted at all times of day with various mental images
+of reference counting combined with tracing I felt I had some sort of idea that I hadn't seen
+anywhere before.  [What if][28] a mutator could run pauselessly by keeping a journal of
+reference count increments and decrements that a GC thread would read and reconstruct into
+the absolute reference count?
+
+Since vowing (probably unreasonably) never to write C or C++ ever again several years earlier,
+and since my main competence was in Python, I would have to wait until I felt comfortable enough
+in Rust to begin experimenting.
+
+The idea sat patiently on the back seat until one day in August I suddenly felt irrationally
+exuberant about it and decided to write a draft [RFC][31] for feedback, as I was, after all,
+making this all up in a vacuum.  Preparing the RFC to be serious meant wider reading: mostly
+Bacon's reference counting papers and patents, general garbage collection theory and concurrent
+and parallel data structures.
+
+At the time, I thought the mechanism could only work for immutable/persistent data structures;
+the most convincing [feedback][29] [I received][30] was that this would be too restrictive.
+
+Thinking the mechanism through for mutable object graphs now occupied the back of my mind while
+I began work on the most basic data structure I would regardless need, a bitmapped vector trie.
+Whatever Rust I had played with until now taught me little compared with implementing this data
+structure, where I had to come to know unsafe and the borrow checker.
+
+It took until Christmas to get [bitmaptrie][32] to a place where it was sufficiently correct
+and featured to begin to use. That seems like a long time. I am a slow but thorough learner.
+And I only had late evenings.
+
+
+
 ### <a name="rt"></a>Motivation: Hosting Languages
+
+In the previous section I mentioned vowing never to write C or C++ again. Rust exists to address
+the very reasons I'd come to dread those languages.  I also mentioned an interest in programming
+languages and runtimes.
 
 If a higher level programming language is not hosted in itself, there is a very high chance that
 it is written in C or C++. By a degree of necessity, lower level interaction or optimized
 extensions of those runtimes must also be in C or C++, perpetuating the pervasiveness of
 these two languages.
 
-Mo-gc is motivated by the safety benefits of Rust over C and C++ to explore a programming
-language runtime written in Rust. Having familiar and attractive dynamic or scripting languages
-written in Rust may lead to wider Rust adoption, spreading the safety.
+I believe that if Rust is to be ultimately pervasive one day, it must itself host runtimes for
+languages that are more accessible, just as Python and C are currently a popular combination.
 
-A garbage collector is a fundamental requirement for most languages. It makes some sense to begin
-there rather than deferring the problem of memory management.
+The mo-gc experiment is motivated by the safety benefits of Rust over C and C++ to explore a
+programming language runtime written in Rust, with the ultimate aim to spread the safety that
+Rust encourages.
+
+Many new programming languages seem to start with designing the syntax with a general idea of the
+desired semantics in mind, implementing a basic garbage collector as a second-class necessity.
+As a garbage collector is a foundational requirement for most language runtimes, it makes some
+sense to begin there rather than deferring the problem of memory management.
 
 
 
@@ -333,7 +390,7 @@ would be responsible for resetting the flag - a gray flag.
 
 If an object in the mature space is rooted and by way of indirection points at an object in the
 young generation, that mature object root is insufficient in the current implementation to mark
-the young object. The young object, if not reachable only in the young generation, will be
+the young object. The young object, if not reachable also in the young generation, will be
 dropped.
 
 A further write barrier feature must generate a reliable remembered set.
@@ -469,6 +526,11 @@ The summary of options to investigate is:
 [22]: http://wiki.luajit.org/New-Garbage-Collector
 [23]: https://github.com/pnkfelix
 [24]: http://doc.cat-v.org/inferno/concurrent_gc/concurrent_gc.pdf
-[25]: https://github.com/fitzgen
+[25]: https://github.com/fitzgen/oxischeme
 [26]: http://www.ccs.neu.edu/home/pnkfelix/thesis/klock11-diss.pdf
 [27]: http://www.cs.rice.edu/~javaplt/311/Readings/wilson92uniprocessor.pdf
+[28]: https://en.wikipedia.org/wiki/Wild_Kratts
+[29]: https://users.rust-lang.org/t/rfc-pauseless-concurrent-garbage-collector/2624
+[30]: https://www.reddit.com/r/rust/comments/3ihbl6/rfc_pauseless_concurrent_garbage_collector/
+[31]: https://github.com/pliniker/mo-gc/blob/master/doc/Project-RFC.md
+[32]: https://github.com/pliniker/bitmaptrie-rs
