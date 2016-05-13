@@ -32,6 +32,7 @@ Summary: Introduction to mo-gc
 # Contents
 
 * [Irrational Exuberance](#ie)
+* [Summary of the Design](#des)
 * [Motivation: Hosting Languages](#rt)
 * [Garbage Collection and Rust](#gcrust)
 * [Inside mo-gc](#inmo)
@@ -101,6 +102,18 @@ My goal for this project was to make the code performant, using parallelism wher
 The more performant the individual components were, the more the inherent bottlenecks in
 the overall system would stand out. In time I added the ability to shard a trie into mutable
 sub-tries, each of which would be independently updated in parallel.
+
+
+
+### <a name="des"></a>Summary of the Design
+
+* Pauseless: the mutator shouldn't be blocked by the GC thread ever, by writing reference count
+  adjustments to a journal - a buffer - rather than being stopped for stack scanning periodically.
+* Generational: new objects are kept track of separately from old objects. The advantage is that
+  the entire heap shouldn't be traced on every collection, rather just the new object pool can
+  be traced often and the entire heap traced infrequently. This is a performance optimization.
+* Parallel mark and sweep: examining each object in the heap for what other objects it points to
+  can be done by multiple threads; freeing unreferenced objects can be done by multiple threads.
 
 
 
