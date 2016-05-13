@@ -1,7 +1,7 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-        <title>Ideas to try in mo-gc</title>
+        <title>Write Barrier and Arena Internal Discussion</title>
         <meta charset="utf-8" />
         <meta name="viewport" content="width=device-width, initial-scale=1" />
         <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/pure/0.6.0/pure-min.css" />
@@ -47,22 +47,36 @@
 
             <div class="background-image-small">
                 <div class="title-container">
-                    <h1>Ideas to try in mo-gc</h1>
+                    <h1>Write Barrier and Arena Internal Discussion</h1>
                 </div>
             </div>
         </div>
     </div>
 
     <div class="entry-content">
-        <h1>Mo-gc Ideas</h1>
+        <p>This page does not describe the full requirements to make <code>mo-gc</code> fully operational.</p>
+<h2>The Journal</h2>
+<p>Is this necessary when other write barriers may suffice? Yes and no.</p>
+<p>Given a <code>GcRoot&lt;Environment&gt;</code> where objects are added and removed from the <code>Environment</code> instance,
+the journal as roots reference counter is largely unneeded. Except for the initial <code>GcRoot&lt;...&gt;</code>.</p>
+<p>All this is achieving though is pushing the burden of maintaining the root set on to the mutator,
+though it may be the implementation reality for a hosted language.</p>
+<p>The journal, then, as a per-mutator SPSC queue of reference count adjustments (though not new
+objects) is basically necessary.</p>
 <h2>Arenas</h2>
 <p>Object sizes should be fixed to one size fits all types (yes, wasteful, but easier than dealing
 with fragmentation up front.)</p>
 <p>This is like Ruby's allocator. Similarly, there are bit fields for marking and object presence.</p>
-<p>Objects are marked black on allocation, making this a snapshot-at-beginning structure.</p>
 <p>Arenas have additional data structures that are updated by a write barrier. The write barrier
 may additionally block the mutator if the arena being updated requires synchronization with
 the mutator.</p>
+<p>Do objects need to be marked black or white on allocation?</p>
+<ul>
+<li>Because the journal represents snapshot-at-beginning behavior, new objects should be marked
+  black on allocation.</li>
+<li>If they are marked white, the write barrier would take effect during the mark phase if a
+  new object is attached to an existing object but otherwise there is nothing to root the object.</li>
+</ul>
 <h3>Sequential Store Buffer</h3>
 <p>Each arena gets it's own SSB for objects that may be missed during tracing.</p>
 <p>Every pointer value that is overwritten is pushed on to the SSB of the arena it is associated
@@ -80,7 +94,7 @@ arena-local heap structure is mutable in both objects allocated and object relat
 <table>
 <thead>
 <tr>
-<th>Invariant:</th>
+<th>Invariant: ?</th>
 </tr>
 </thead>
 <tbody></tbody>
