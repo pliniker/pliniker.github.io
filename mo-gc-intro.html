@@ -72,6 +72,7 @@ lessons of garbage collector implementation.</p>
 <h1>Contents</h1>
 <ul>
 <li><a href="#ie">Irrational Exuberance</a></li>
+<li><a href="#des">Summary of the Design</a></li>
 <li><a href="#rt">Motivation: Hosting Languages</a></li>
 <li><a href="#gcrust">Garbage Collection and Rust</a></li>
 <li><a href="#inmo">Inside mo-gc</a></li>
@@ -126,6 +127,16 @@ It includes a last-access path cache which can speed up lookups on spatially den
 The more performant the individual components were, the more the inherent bottlenecks in
 the overall system would stand out. In time I added the ability to shard a trie into mutable
 sub-tries, each of which would be independently updated in parallel.</p>
+<h3><a name="des"></a>Summary of the Design</h3>
+<ul>
+<li>Pauseless: the mutator shouldn't be blocked by the GC thread ever, by writing reference count
+  adjustments to a journal - a buffer - rather than being stopped for stack scanning periodically.</li>
+<li>Generational: new objects are kept track of separately from old objects. The advantage is that
+  the entire heap shouldn't be traced on every collection, rather just the new object pool can
+  be traced often and the entire heap traced infrequently. This is a performance optimization.</li>
+<li>Parallel mark and sweep: examining each object in the heap for what other objects it points to
+  can be done by multiple threads; freeing unreferenced objects can be done by multiple threads.</li>
+</ul>
 <h3><a name="rt"></a>Motivation: Hosting Languages</h3>
 <p>In the previous section I mentioned vowing never to write C or C++ again. Rust exists to address
 the very reasons I'd come to dislike those languages.  I also mentioned an interest in programming
