@@ -44,8 +44,6 @@ Summary: Introduction to mo-gc
 
 ### <a name="ie"></a>Irrational Exuberance, or How This Project Got Started
 
-I am a systems programmer at heart, despite having mostly used Python for the past seven years.
-
 Early in 2015, Nick Fitzgerald published [Oxischeme][25]. With a general interest in programming
 languages and runtimes and a specific interest in Rust, I had been following Rust's progress
 towards 1.0 with eager anticipation. At the time, Oxischeme was notable as the only
@@ -96,9 +94,8 @@ It took until Christmas to get [bitmaptrie][32] to a place where it was sufficie
 and featured to begin to use. That seems like a long time. I am a slow but thorough learner.
 And I mostly only had late evenings.
 
-The bitmapped vector trie uses word-sized indeces and is therefore `O(log 32)` access and
-`O(log 64)` on 32 bit and 64 bit architectures respectively. It includes a last-access path
-cache which can speed up lookups on spatially dense indexed entries.
+The bitmapped vector trie uses word-sized indeces and is therefore `O(log_WORDBITS n)` access.
+It includes a last-access path cache which can speed up lookups on spatially dense indexed entries.
 
 My goal for this project was to make the code performant, using parallelism where possible.
 The more performant the individual components were, the more the inherent bottlenecks in
@@ -491,11 +488,15 @@ has been a hugely enjoyable and rewarding deep dive into garbage collection.  It
 
 * [Bacon03Pure][1] Bacon et al, A Pure Reference Counting Garbage Collector
 * [Bacon2004][2] Bacon et al, A Unified Theory of Garbage Collection
+* [Basu2009][36] Abhinaba Basu, Back to basic: Series on dynamic memory management
 * [BDWGC][17] Boehm-Demers-Weiser GC, Two-Level Tree Structure for Fast Pointer Lookup
-* [Klock2011][26] Felix S Klock II, Scalable Garbage Collection via Remembered Set
-  Summarization and Refinement
+* [Klock2011][26] Felix S Klock II, Scalable Garbage Collection via Remembered Set Summarization and Refinement
+* [Klock2015-1][14] Felix S Klock II, GC and Rust Part 0: Garbage Collection Background
+* [Klock2015-2][15] Felix S Klock II, GC and Rust Part 1: Specifying the Problem
+* [Klock2015-3][16] Felix S Klock II, GC and Rust Part 2: The Roots of the Problem
 * [Oxischeme][3] Nick Fitzgerald, Memory Management in Oxischeme
 * [Huelsbergen1998][24] Huelsbergen et al, Very Concurrent Mark-&-Sweep Garbage Collection without Fine-Grain Synchronization
+* [Lua Wiki][22] The LuaJIT Wiki, Garbage Collector
 * [Rust blog][5] Rust in 2016
 * [Sasada2015][19] Koichi Sasada, Incremental Garbage Collection in Ruby 2.2
 * [Servo][13] Servo blog, JavaScript: Servo’s only garbage collector
@@ -534,3 +535,4 @@ has been a hugely enjoyable and rewarding deep dive into garbage collection.  It
 [33]: http://graydon2.dreamwidth.org/189377.html
 [34]: https://botbot.me/mozilla/rust-internals/2015-08-26/?msg=48213031&page=6
 [35]: https://blogs.msdn.microsoft.com/abhinaba/2009/03/02/back-to-basics-generational-garbage-collection/
+[36]: https://blogs.msdn.microsoft.com/abhinaba/2009/01/25/back-to-basic-series-on-dynamic-memory-management/
