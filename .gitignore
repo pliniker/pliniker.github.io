@@ -1,5 +1,2 @@
-_cache
-*.hi
-*.o
-site
-*.pyc
+_site
+.sass-cache
