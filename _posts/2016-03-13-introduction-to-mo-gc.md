@@ -3,8 +3,7 @@ layout: post
 title:  "An Experiment in Garbage Collection"
 date:   2016-03-13 21:00 EST5EDT
 categories: Rust
-redirect_from:
-  - /mo-gc-intro.html
+redirect_from: "/mo-gc-intro.html"
 ---
 
 
