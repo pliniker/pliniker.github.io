@@ -6,8 +6,6 @@ categories: Rust
 ---
 
 
-**TODO NEEDS BETTER BENCHMARK CODE**
-
 Computed gotos are an occasionally requested feature of Rust for optimizing interpreter virtual
 machines and finite state machines.  A Google search will turn up numerous discussions on interpreted
 language mailing lists on converting to computed goto dispatch. GCC and clang both support computed

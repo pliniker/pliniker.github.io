@@ -16,3 +16,5 @@ github_username:  pliniker
 
 # Build settings
 markdown: kramdown
+
+redirects: yes
