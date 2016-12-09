@@ -17,4 +17,5 @@ github_username:  pliniker
 # Build settings
 markdown: kramdown
 
-redirects: yes
+gems:
+  - jekyll-redirect-from
