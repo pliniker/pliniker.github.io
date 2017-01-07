@@ -14,6 +14,8 @@ url: "http://pliniker.github.io" # the base hostname & protocol for your site
 twitter_username: peterliniker
 github_username:  pliniker
 
+timezone: EST5EDT
+
 # Build settings
 markdown: kramdown
 
