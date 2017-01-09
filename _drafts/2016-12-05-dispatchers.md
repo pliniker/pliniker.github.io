@@ -19,6 +19,8 @@ computed gotos or tail calls.
 At this time there is no portable way to produce computed gotos or tail call optimization in compiled
 machine code from Rust.  This experiment investigates what is possible, even if non-portable or unsafe.
 
+The results are tabluated and graphed in [this Google Sheet](https://docs.google.com/spreadsheets/d/1qbBt1NgvmLLmYxHlPRZNsXybivQIDVUAdsCNGKmNhos/edit#gid=0). Read on for an explanation!
+
 
 # Introduction
 
@@ -49,32 +51,83 @@ advantages of computed gotos, and to find out what is possible in Rust.
 # Experimental Setup
 
 The experiment consists of three tests executed across four dispatch methods, each implementing the
-same virtual machine, in turn run on **n** different CPUs.
+same virtual machine instruction set, in turn run on five different CPUs.
 
 These CPUS are:
 
-* ARM Cortex-A57
-* Intel Atom N450
-* Intel Core2 Duo T8300
-* Intel Exxxx
-* AMD yyyy
+| CPU | System | OS | Architecture/code-name |
+|-----|--------|----|------------------------|
+| ARM Cortex-A57 | Qualcomm MSM8992 in my Nexus 5x | Android 7.0 | ARM aarch64 |
+| Intel Atom N450 | my old HP netbook from 2009 | Ubuntu 16.04 | Intel Pineview |
+| Intel Core2 Duo T8300 | my old Dell D830 from 2008 | Ubuntu 16.04 | Intel Penryn |
+| Intel Xeon E5-2666 | an EC2 c4.large | Ubuntu 16.04 | Intel Haswell |
+| AMD A4-6210 | my HP-21 from 2014 | Windows 10 | AMD Beema |
 
-The contents of this section are as follows:
 
-* The Virtual Machine
-* The Three Tests
-* Single Match Dispatch
-* Single Match Unrolled Loop Dispatch
-* Tail Call Dispatch
-* Computed Goto Dispatch
+The next two subsections, *The Virtual Machine* and *The Three Tests* describe the
+minimal language VM instruction set and memory model and the three sets of opcode
+sequences that exercise branch prediction in different ways respectively.
+
+Following those are the explanations of the four different dispatch methods:
+*Single Match Dispatch*, *Single Match Unrolled Loop Dispatch*, *Tail Call Dispatch*
+and *Computed Goto Dispatch*.
 
 
 ### The Virtual Machine
+
+The VM is implemented in [vm.rs](https://github.com/pliniker/dispatchers/blob/master/src/vm.rs). Since
+dispatch performance is the focus of the experiment, the features supported by the VM are
+far below what would be required to implement a useful programming language.
+
+The instruction set allows for a handful of arithmetic operations, comparisons, branches and a
+pseudorandom number generator.
+
+Instructions support three types: Integer, Boolean and None. Because of the simplicity of the instruction
+set, the None value is also used as an error type. It is not used in the tests.
+
+The memory model is a 256 slot register set. No stack, no heap.
+
+Instructions are fixed 32 bits wide with the low 8 bits forming the operator and the higher sets of
+8 or 16 bits forming register or literal operands.
+
+The code in `vm.rs` is deliberately designed to be dispatch-method agnostic: no default method is
+provided, merely the memory model and instruction function definitions. This separation of concerns
+should cost no overhead in the world of Rust's cost-free abstractions.
+
 
 ### The Three Tests
 
 All three tests are coded in [fixture.rs](https://github.com/pliniker/dispatchers/blob/master/src/fixture.rs)
 as hand-coded bytecode sequences for the virtual machine.
+
+
+#### Nested Loop
+
+This test is comprised of one loop inside another. The instruction sequence is very short and
+utterly predictable. *The performance of this test should give a baseline performance-high
+for CPUS in which they should be able to predict every indirect branch.*
+
+
+#### Longer Repetitive
+
+This test is only slightly less predictable than *Nested Loop* but the instruction sequence is
+somewhat longer. It is essentially *Nested Loop* unrolled a handfull of times with some NOP
+instructions added in different patterns among each unroll instance.
+
+This test should fit somewhere inbetween *Nested Loop* and *Unpredictable* in that while it
+*is* predictable, it also requires more than basic indirect branch prediction.
+
+
+#### Unpredictable
+
+The core of this test is the use of a pseudorandom number generator. On the roll of the pseudo-dice
+various sections of code in the loop will be skipped or included. This should make the overall
+instruction sequence essentially unpredictable to any branch predictor.
+
+*This test should demonstrate the low point of performance for each CPU with frequent pipeline flushes.*
+
+Direct comparison of this test to the other two tests is complicated by the use of the random
+number generator in that there may be overhead in using it that the other two tests do not include.
 
 
 ### Single Match Dispatch
@@ -85,53 +138,58 @@ implementation:
 
 {% highlight asm %}
 ```asm`
-.LBB0_5:                                # beginning of dispatch loop
-    movq    32(%rsp), %rdi              # load address of program Vec
-    movl    (%rdi,%rsi,4), %eax         # rsi contains pc; fetch next opcode
-    movl    %eax, %ecx                  # eax contains opcode; extract operator byte
-    decb    %cl                         # adjust for jump table indexing
-    movzbl  %cl, %ecx
-    cmpb    $11, %cl                    # bounds check on jump table index
-    ja      .LBB0_50
-    movslq  (%r8,%rcx,4), %rcx          # r8 contains address of jump table .LJTI0_0
-    addq    %r8, %rcx                   # convert offset rcx into an absolute address
-    jmpq    *%rcx                       # indirect branch to instruction code
+#
+# Top of the dispatch loop
+#
+.LBB0_57
+    movq    8(%rsp), %rdi
+    movl    (%rdi,%r12,4), %ecx
+    movzbl  %cl, %eax
+    cmpb    $13, %al
+    ja      .LBB0_58
+    movslq  (%r13,%rax,4), %rax
+    addq    %r13, %rax
+    jmpq    *%rax
+# ...
+# OP_JMP, just one of the instruction routines
+#
+.LBB0_32:
+    shrl    $16, %ecx
+    movq    %rcx, %r12
+    jmp     .LBB0_54
+# ...
+# Bottom of the dispatch loop
+#
+.LBB0_53:
+    incq    %r12
+.LBB0_54:
+    incq    %rbx
+    cmpq    %r12, %r8
+    ja      .LBB0_57
 # ....
-.LBB0_14:                               # instruction code for OP\_JMP
-    shrl    $16, %eax                   # extract branch target adddress
-    movq    %rax, %rsi                  # assign to pc
-    jmp    .LBB0_46                     # go to the bottom of loop
-# ....
-.LBB0_45:                               # other instructions just increment the pc
-    incq    %rsi
-.LBB0_46:                               # bottom of the loop
-    incq    %rbx                        # rbx contains counter
-    movq    %rbx, 24(%rsp)              # writing the counter back to it's stack location
-    cmpq    %rsi, %rdx                  # bounds check on program Vec access
-    ja      .LBB0_5                     # all good? start loop over
-# ....
-.LJTI0_0:                               # jump table
-    .long   .LBB0_14-.LJTI0_0
-    .long   .LBB0_7-.LJTI0_0
-    .long   .LBB0_18-.LJTI0_0
-    .long   .LBB0_19-.LJTI0_0
-    .long   .LBB0_12-.LJTI0_0
-    .long   .LBB0_26-.LJTI0_0
-    .long   .LBB0_27-.LJTI0_0
-    .long   .LBB0_24-.LJTI0_0
+# The jump table
+#
+.LJTI0_0:
     .long   .LBB0_32-.LJTI0_0
-    .long   .LBB0_15-.LJTI0_0
+    .long   .LBB0_8-.LJTI0_0
+    .long   .LBB0_29-.LJTI0_0
+    .long   .LBB0_24-.LJTI0_0
+    .long   .LBB0_30-.LJTI0_0
+    .long   .LBB0_23-.LJTI0_0
     .long   .LBB0_28-.LJTI0_0
-    .long   .LBB0_10-.LJTI0_0
+    .long   .LBB0_58-.LJTI0_0
+    .long   .LBB0_58-.LJTI0_0
+    .long   .LBB0_58-.LJTI0_0
+    .long   .LBB0_11-.LJTI0_0
+    .long   .LBB0_14-.LJTI0_0
+    .long   .LBB0_40-.LJTI0_0
+    .long   .LBB0_33-.LJTI0_0
 ```
 {% endhighlight %}
 
-What is notable about this code is that LLVM has optimized it very reasonably. It has viewed
-the dispatch routine and the inlined VM instruction code as a whole and allocated registers
-appropriately. The little overhead in this example (adjusting the opcode value for indexing into
-the jump table by `decb %cl` and storing the counter back to it's stack address with
-`movq %rbx, 24(%rsp)`) could be eliminated by some minor source code adjustments. I'm not a
-pipeline and superscalar expert so I don't think I could hand code this [any better][7].
+What is notable about this assembly listing is that LLVM has viewed the VM instruction code
+and dispatch loop as a whole, allocating registers efficiently. Compare against the later
+tail call dispatch test.
 
 
 ### Single Match Unrolled Loop Dispatch
@@ -158,6 +216,21 @@ explain
 ## Test Results
 
 [See Google Sheets document](https://docs.google.com/spreadsheets/d/1qbBt1NgvmLLmYxHlPRZNsXybivQIDVUAdsCNGKmNhos/edit#gid=0)
+
+
+## Conclusions
+
+TCO dispatch comes with function-call overhead and the inability of LLVM to holistically optimize
+all interpreter instruction methods, often largely negating any benefit of threaded dispatch.
+In addition, Rust and LLVM do not TC-optimize for 32bit x86 or debug builds, making this currently
+a non-option.
+
+In my opinion it should be possible to encapsulate threaded dispatch in macros that could be
+imported from a crate. Because inline assembly is required, this cannot currently be done
+in stable Rust.
+
+On Haswell and newer Intel architectures, dispatch method is no longer a significant performance
+differentiator. On low-power architectures - ARM, Intel and AMD - it continues to make a difference.
 
 
 ## References
