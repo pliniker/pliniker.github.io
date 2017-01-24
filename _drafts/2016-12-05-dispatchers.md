@@ -19,7 +19,8 @@ computed gotos or tail calls.
 At this time there is no portable way to produce computed gotos or tail call optimization in compiled
 machine code from Rust.  This experiment investigates what is possible, even if non-portable or unsafe.
 
-The results are tabluated and graphed in [this Google Sheet](https://docs.google.com/spreadsheets/d/1qbBt1NgvmLLmYxHlPRZNsXybivQIDVUAdsCNGKmNhos/edit#gid=0). Read on for an explanation!
+The results are tabluated and graphed in [this Google Sheet](https://docs.google.com/spreadsheets/d/1qbBt1NgvmLLmYxHlPRZNsXybivQIDVUAdsCNGKmNhos/edit#gid=0).
+Read on for an explanation!
 
 
 # Introduction
@@ -87,8 +88,8 @@ set, the None value is also used as an error type. It is not used in the tests.
 
 The memory model is a 256 slot register set. No stack, no heap.
 
-Instructions are fixed 32 bits wide with the low 8 bits forming the operator and the higher sets of
-8 or 16 bits forming register or literal operands.
+"Bytecode" instructions are fixed 32 bits wide with the low 8 bits forming the operator and the
+higher sets of 8 or 16 bits forming register or literal operands.
 
 The code in `vm.rs` is deliberately designed to be dispatch-method agnostic: no default method is
 provided, merely the memory model and instruction function definitions. This separation of concerns
@@ -103,12 +104,16 @@ as hand-coded bytecode sequences for the virtual machine.
 
 #### Nested Loop
 
+[`fn nested_loop()`](https://github.com/pliniker/dispatchers/blob/master/src/fixture.rs:29)
+
 This test is comprised of one loop inside another. The instruction sequence is very short and
 utterly predictable. *The performance of this test should give a baseline performance-high
 for CPUS in which they should be able to predict every indirect branch.*
 
 
 #### Longer Repetitive
+
+[`fn longer_repetitive()`](https://github.com/pliniker/dispatchers/blob/master/src/fixture.rs:59)
 
 This test is only slightly less predictable than *Nested Loop* but the instruction sequence is
 somewhat longer. It is essentially *Nested Loop* unrolled a handfull of times with some NOP
@@ -119,6 +124,8 @@ This test should fit somewhere inbetween *Nested Loop* and *Unpredictable* in th
 
 
 #### Unpredictable
+
+[`fn unpredictable()`](https://github.com/pliniker/dispatchers/blob/master/src/fixture.rs:133)
 
 The core of this test is the use of a pseudorandom number generator. On the roll of the pseudo-dice
 various sections of code in the loop will be skipped or included. This should make the overall
@@ -134,10 +141,11 @@ number generator in that there may be overhead in using it that the other two te
 
 [switch.rs](https://github.com/pliniker/dispatchers/blob/master/src/switch.rs) compiles to a
 [jump table](https://github.com/pliniker/dispatchers/blob/master/emitted_asm/switch_x86_64.s)
-implementation:
+implementation. For these inline examples I'll pull the x86_64 assembly. The aarch64 assembly
+is comparable in instruction type and count; the x86 assembly relies on the stack a bit more
+due to the lack of registers.
 
 {% highlight asm %}
-```asm`
 #
 # Top of the dispatch loop
 #
@@ -184,33 +192,82 @@ implementation:
     .long   .LBB0_14-.LJTI0_0
     .long   .LBB0_40-.LJTI0_0
     .long   .LBB0_33-.LJTI0_0
-```
 {% endhighlight %}
 
-What is notable about this assembly listing is that LLVM has viewed the VM instruction code
-and dispatch loop as a whole, allocating registers efficiently. Compare against the later
-tail call dispatch test.
+LLVM has viewed the VM instruction code and dispatch loop as a whole, allocating registers
+efficiently across the whole function.
 
 
 ### Single Match Unrolled Loop Dispatch
 
-explain
+[unrollswitch.rs](https://github.com/pliniker/dispatchers/blob/master/src/unrollswitch.rs)
+compiles to a series of [jump tables](https://github.com/pliniker/dispatchers/blob/master/emitted_asm/unrollswitch_x86_64.s).
+This is identical to the *Single Match* dispatch test, except the loop is unrolled a handful
+of times. In addition, when a VM branch instruction is executed and the branch is taken,
+control flow jumps to the top of the loop. My idea here was that under tight bytecode loop
+conditions, this could effectively unroll the bytecode loop too. The huge disadvantage is
+that the VM instruction code is duplicated the number of times of the unroll count. This
+cannot be good for the instruction cache hit rate, or certainly would not be for an
+interpreter with a high operator count.
 
 
 ### Tail Call Dispatch
 
-The tail-call optimized code in threaded.rs produces this pattern but as TCO is not
-a guaranteed feature, some builds such as 32bit x86 and debug builds do not convert
-the tail calls to jumps resulting in recursion stack overflow.
+LLVM as called by rustc produces TCO assembly for x86_64, arm and aarch64, but only for
+release builds. x86 builds will hit the stack limit and could not be included in the
+results.
 
-Another disadvantage is that LLVM treats each opcode function independently of the
-others, including return value overhead, whereas the switch based code can inline
-all opcode functions and optimize them as one unit, making much better use of registers.
+[threaded.rs](https://github.com/pliniker/dispatchers/blob/master/src/threaded.rs) compiles
+to a single jump table shared by all the VM instruction functions:
+
+{% highlight asm %}
+op_jmp:
+    pushq   %rax
+    movl    %esi, %eax
+    shrl    $16, %eax
+    movq    280(%rdi), %rdx
+    cmpq    %rax, %rdx
+    jbe     .LBB1_3
+    movq    264(%rdi), %rdx
+    movl    (%rdx,%rax,4), %edx
+    movzbl  %dl, %esi
+    cmpl    $32, %esi
+    jae     .LBB1_4
+    movq    8(%rdi,%rsi,8), %r8
+    incq    %rcx
+    movl    %edx, %esi
+    movq    %rax, %rdx
+    popq    %rax
+    jmpq    *%r8
+{% endhighlight %}
+
+As suggested in [this forum discussion][2], we should get six registers for parameter passing.
+We're using four, keeping `opcode`, `PC` and `counter` off the stack, which is consistent with
+`switch.rs`.  What is notable is the overhead of pushing and popping `rax` on and off the stack
+and that LLVM treats each function as a separate unit with calling convention constraints.
 
 
 ### Computed Goto Dispatch
 
-explain
+explain inline assembly, LLVM register constraints in and out of each dispatch block.
+
+{% highlight asm %}
+goto_jmp:
+    movl    %ecx, %eax
+    shrl    $16, %eax
+    movq    24(%r12), %rdx
+    cmpq    %rax, %rdx
+    jbe     .LBB0_72
+    movq    8(%r12), %rcx
+    movl    (%rcx,%rax,4), %ecx
+    movzbl  %cl, %esi
+    cmpl    $31, %esi
+    ja      .LBB0_67
+    incq    %r8
+    movq    24(%rsp,%rsi,8), %rsi
+    movq    %rax, %rdx
+    jmpq    *%rsi
+{% endhighlight %}
 
 
 ## Test Results
@@ -220,25 +277,28 @@ explain
 
 ## Conclusions
 
-TCO dispatch comes with function-call overhead and the inability of LLVM to holistically optimize
-all interpreter instruction methods, often largely negating any benefit of threaded dispatch.
-In addition, Rust and LLVM do not TC-optimize for 32bit x86 or debug builds, making this currently
-a non-option.
+TODO not necessarily true, wait for further test results
 
-In my opinion it should be possible to encapsulate threaded dispatch in macros that could be
-imported from a crate. Because inline assembly is required, this cannot currently be done
-in stable Rust.
+Tail call dispatch comes with function-call instruction overhead that varies by architecture.
+It is also possibly hindered by the inability of LLVM to holistically optimize
+all interpreter instruction functions. These combine to negate some of the benefits of threaded
+dispatch under specific circumstances. In addition, Rust and LLVM do not TC-optimize for 32bit
+x86 or debug builds, making this a non-option as long as Rust does not explicitly support TCO.
 
-On Haswell and newer Intel architectures, dispatch method is no longer a significant performance
-differentiator. On low-power architectures - ARM, Intel and AMD - it continues to make a difference.
+In my opinion it should be possible to encapsulate threaded dispatch with inline assembly in macros
+that could be imported from a crate. Because inline assembly is required, this cannot currently be done
+in stable Rust. Compiler support should not be required.
+
+On Haswell and newer Intel architectures, dispatch method is, under most circumstances, no longer a
+significant performance differentiator. On low-power architectures - ARM, Intel and AMD - it
+continues to make a difference.
 
 
-## References
+## Further Reading
 
 * [Computed goto for efficient dispatch tables][1] - Eli Bendersky, 2012
 * [How can I approach the performance of C interpreter that uses computed gotos?][2] - Discussion on Rust Users forum, 2016
 * [Gotos in restricted functions][3] - Discussion on Rust Internals forum, 2016
-* [Pretty State Machine Patterns in Rust][4] - Andrew Hobden, 2016
 * [The Structure and Performance of Efficient Interpreters][5] - Ertl and Gregg, 2003
 * [Branch Prediction and the Performance of Interpreters][6]- Rohou, Swamy and Seznec, 2015
 * [LuaJIT 2 beta 3 is out: Support both x32 & x64][7] - Mike Pall, Discussion on Reddit, 2010
@@ -246,7 +306,6 @@ differentiator. On low-power architectures - ARM, Intel and AMD - it continues t
 [1]: http://eli.thegreenplace.net/2012/07/12/computed-goto-for-efficient-dispatch-tables
 [2]: http://users.rust-lang.org/t/how-can-i-approach-the-performance-of-c-interpreter-that-uses-computed-gotos/6261/4
 [3]: https://internals.rust-lang.org/t/gotos-in-restricted-functions/4393
-[4]: https://hoverbear.org/2016/10/12/rust-state-machine-pattern/
 [5]: http://www.jilp.org/vol5/v5paper12.pdf
 [6]: https://hal.inria.fr/hal-01100647/document
 [7]: https://www.reddit.com/r/programming/comments/badl2/luajit_2_beta_3_is_out_support_both_x32_x64/c0lrus0/
