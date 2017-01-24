@@ -19,7 +19,8 @@ computed gotos or tail calls.
 At this time there is no portable way to produce computed gotos or tail call optimization in compiled
 machine code from Rust.  This experiment investigates what is possible, even if non-portable or unsafe.
 
-The results are tabluated and graphed in [this Google Sheet](https://docs.google.com/spreadsheets/d/1qbBt1NgvmLLmYxHlPRZNsXybivQIDVUAdsCNGKmNhos/edit#gid=0).
+The results are tabluated and graphed in [this Google Sheet](https://docs.google.com/spreadsheets/d/1qbBt1NgvmLLmYxHlPRZNsXybivQIDVUAdsCNGKmNhos/edit#gid=0). The project code itself is hosted [on Github](https://github.com/pliniker/dispatchers).
+
 Read on for an explanation!
 
 
@@ -241,15 +242,59 @@ op_jmp:
     jmpq    *%r8
 {% endhighlight %}
 
-As suggested in [this forum discussion][2], we should get six registers for parameter passing.
-We're using four, keeping `opcode`, `PC` and `counter` off the stack, which is consistent with
-`switch.rs`.  What is notable is the overhead of pushing and popping `rax` on and off the stack
-and that LLVM treats each function as a separate unit with calling convention constraints.
+As suggested in [this forum discussion][2], we should get six registers for parameter passing
+on x86_64. We're using four, keeping `opcode`, `PC` and `counter` off the stack, which is
+at least consistent with `switch.rs` and the other implementations. There's a good chance
+we could do better but I'm not sure how to go about it.
+
+What is notable is the overhead of pushing and popping `rax` on and off the stack and that LLVM
+treats each function as a separate unit with calling convention constraints.
 
 
 ### Computed Goto Dispatch
 
-explain inline assembly, LLVM register constraints in and out of each dispatch block.
+For this experiment, I wanted to see if I could create a computed goto environment close
+to what is possible in [clang and gcc][1]. In order to do that I would have to resort to inline
+assembly and, sadly, nightly rustc.
+
+In my first attempt I used inline assembly to populate a jump table with label addresses and
+insert `jmp` instructions after each VM instruction block. This produced segmentation faults.
+After studying the assembly output from rustc for a while I realized that LLVM could not
+intelligently understand that the `jmp` instructions would affect code flow: it was allocating
+registers throughout the function with the assumption that code flow would fall all the way
+through to the end of the function in sequence. Register allocation varied throughout the
+function but my `jmp` instructions disrupted the allocation flow.
+
+The fix for this is to introduce constraints. Each VM instruction block of code must be
+prefixed and postfixed with register constraints, pinning variables to specific variables
+to keep the allocation flow consistent no matter where in the function a `jmp` instruction
+goes.
+
+{% highlight asm %}
+#[cfg(target_arch = "x86_64")]
+macro_rules! dispatch {
+    ($vm:expr, $pc:expr, $opcode:expr, $jumptable:expr, $counter:expr) => {
+        $counter += 1;
+        let addr = $jumptable[operator($opcode) as usize];
+
+        unsafe {
+            // the inputs of this asm block force these locals to be in the specified
+            // registers after $action is exited, so that on entry to the consecutive
+            // $action, the previous asm block will be set up with the right register
+            // to locals mapping
+            asm!("jmpq *$0"
+                 :
+                 : "r"(addr), "{r8d}"($counter), "{ecx}"($opcode), "{rdx}"($pc)
+                 :
+                 : "volatile"
+            );
+        }
+    }
+}
+{% endhighlight %}
+
+The optimized assembly output is the most compact of any of the dispatch methods and
+overall, this code outperforms the other methods.
 
 {% highlight asm %}
 goto_jmp:
@@ -272,26 +317,38 @@ goto_jmp:
 
 ## Test Results
 
-[See Google Sheets document](https://docs.google.com/spreadsheets/d/1qbBt1NgvmLLmYxHlPRZNsXybivQIDVUAdsCNGKmNhos/edit#gid=0)
+Result data is tabulated and charted in
+[this Google Sheets document](https://docs.google.com/spreadsheets/d/1qbBt1NgvmLLmYxHlPRZNsXybivQIDVUAdsCNGKmNhos/edit#gid=0).
+
+The chart that best illustrates the data is _ImprovementOverSwitch_.
+
+* In summary, `threadedasm.rs` performs best overall with `unrollswitch.rs` also doing well,
+though it is assumed that that is largely because the virtual machine is very small and
+fits into I-cache.
+* On Haswell and newer Intel architectures, dispatch method is, under most circumstances, not
+significant performance differentiator. On low-power architectures - ARM, Intel and AMD - it
+continues to make a difference.
 
 
 ## Conclusions
 
-TODO not necessarily true, wait for further test results
-
 Tail call dispatch comes with function-call instruction overhead that varies by architecture.
 It is also possibly hindered by the inability of LLVM to holistically optimize
-all interpreter instruction functions. These combine to negate some of the benefits of threaded
-dispatch under specific circumstances. In addition, Rust and LLVM do not TC-optimize for 32bit
+all interpreter instruction functions. These combine to add a few instructions of overhead
+compared to the inline-assembly single-function `threadedasm.rs` code.
+In addition, Rust and LLVM do not TC-optimize for 32bit
 x86 or debug builds, making this a non-option as long as Rust does not explicitly support TCO.
 
-In my opinion it should be possible to encapsulate threaded dispatch with inline assembly in macros
-that could be imported from a crate. Because inline assembly is required, this cannot currently be done
-in stable Rust. Compiler support should not be required.
+If the FSM or VM is particularly small, unrolling the dispatch loop may be an option as it does
+give a performance increase on most architectures.
 
-On Haswell and newer Intel architectures, dispatch method is, under most circumstances, no longer a
-significant performance differentiator. On low-power architectures - ARM, Intel and AMD - it
-continues to make a difference.
+With respect to computed gotos for threaded dispatch, in my opinion it should be possible to
+encapsulate the inline assembly in macros that could be imported from a crate. Because inline
+assembly is required, this cannot currently be done in stable Rust. Compiler support beyond
+inline assembly and possibly procedural macros should not be required.
+
+If targeting modern high-performance Intel architectures, dispatch method may make little
+difference. Any other architecture, however, may benefit from dispatch method optimization.
 
 
 ## Further Reading
