@@ -343,9 +343,8 @@ dispatch method is not significant performance differentiator. On low-power arch
 Intel and AMD - it continues to make a difference.
 
 Again, go to the spreadsheet to see this chart directly for a better view; this next chart
-illustrates the decrease in performance of branch prediction for each CPU for _Longer Repetitive_
-and _Unpredictable_ against `switch.rs` for _Nested Loop_. Color coding remains the same as
-the earlier chart.
+illustrates the absolute performance of each method and test in cycles per VM instruction.
+Color coding remains the same as the earlier chart.
 
 ![Cycles per VM instruction](https://docs.google.com/spreadsheets/d/1qbBt1NgvmLLmYxHlPRZNsXybivQIDVUAdsCNGKmNhos/pubchart?oid=605750577&format=image){:class="img-responsive"}
 
