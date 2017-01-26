@@ -1,7 +1,7 @@
 ---
 layout: post
 title:  "Virtual Machine Dispatch Experiments in Rust"
-date:   2016-01-23 12:00 EST5EDT
+date:   2016-01-25 23:00 EST5EDT
 categories: Rust
 ---
 
@@ -19,15 +19,19 @@ computed gotos or tail calls.
 At this time there is no portable way to produce computed gotos or tail call optimization in compiled
 machine code from Rust.  This experiment investigates what is possible, even if non-portable or unsafe.
 
-The results are tabluated and graphed in [this Google Sheet](https://docs.google.com/spreadsheets/d/1qbBt1NgvmLLmYxHlPRZNsXybivQIDVUAdsCNGKmNhos/edit#gid=0). The project code itself is hosted [on Github](https://github.com/pliniker/dispatchers).
+The results are tabluated and graphed in
+[this Google Sheet](https://docs.google.com/spreadsheets/d/1qbBt1NgvmLLmYxHlPRZNsXybivQIDVUAdsCNGKmNhos/edit#gid=0).
+The project code itself is hosted [on Github](https://github.com/pliniker/dispatchers).
 
 Read on for an explanation!
 
 
 # Introduction
 
-[Computed gotos][1] are an occasionally requested feature of Rust for optimizing interpreter virtual
-machines and finite state machines.  A Google search will turn up numerous discussions on interpreted
+See the [Wikipedia page][9] for an overview of the higher level topic "Threaded Code."
+
+[Computed gotos][1] are an occasionally requested feature of Rust for implementing threaded interpreters
+and finite state machines. A Google search will turn up numerous discussions on interpreted
 language mailing lists on converting to computed goto dispatch. GCC and clang both support computed
 gotos as an extension to the C language. As a systems language in the same space, it does not seem
 unreasonable to wish for support in Rust.
@@ -265,12 +269,13 @@ registers throughout the function with the assumption that code flow would fall 
 through to the end of the function in sequence. Register allocation varied throughout the
 function but my `jmp` instructions disrupted the allocation flow.
 
-The fix for this is to introduce constraints. Each VM instruction block of code must be
+The fix for this in [threadedasm.rs](https://github.com/pliniker/dispatchers/blob/master/src/threadedasm.rs)
+is to introduce constraints. Each VM instruction block of code must be
 prefixed and postfixed with register constraints, pinning variables to specific variables
 to keep the allocation flow consistent no matter where in the function a `jmp` instruction
 goes.
 
-{% highlight asm %}
+{% highlight rust %}
 #[cfg(target_arch = "x86_64")]
 macro_rules! dispatch {
     ($vm:expr, $pc:expr, $opcode:expr, $jumptable:expr, $counter:expr) => {
@@ -278,10 +283,8 @@ macro_rules! dispatch {
         let addr = $jumptable[operator($opcode) as usize];
 
         unsafe {
-            // the inputs of this asm block force these locals to be in the specified
-            // registers after $action is exited, so that on entry to the consecutive
-            // $action, the previous asm block will be set up with the right register
-            // to locals mapping
+            // the inputs of this asm block force these locals to be in the
+            // specified registers
             asm!("jmpq *$0"
                  :
                  : "r"(addr), "{r8d}"($counter), "{ecx}"($opcode), "{rdx}"($pc)
@@ -320,14 +323,40 @@ goto_jmp:
 Result data is tabulated and charted in
 [this Google Sheets document](https://docs.google.com/spreadsheets/d/1qbBt1NgvmLLmYxHlPRZNsXybivQIDVUAdsCNGKmNhos/edit#gid=0).
 
-The chart that best illustrates the data is _ImprovementOverSwitch_.
+With apologies for the quality of the embedded chart images due to Google Sheets limitations,
+the chart that best illustrates the data is _ImprovementOverSwitch_. Do check out the link
+above to interact with the spreadsheet and charts directly.
+
+![Improvement over Switch](https://docs.google.com/spreadsheets/d/1qbBt1NgvmLLmYxHlPRZNsXybivQIDVUAdsCNGKmNhos/pubchart?oid=484835110&format=image){:class="img-responsive"}
+
+This chart illustrates the ratio of VM instructions per second of each other dispatch method
+against `switch.rs`, normalizing the performance of `switch.rs` for each test to 1.0.
+
+The `unrollswitch.rs` figures are shown in shades of blue, `threaded.rs` in yellow and
+`threadedasm.rs` in shades of green.
 
 * In summary, `threadedasm.rs` performs best overall with `unrollswitch.rs` also doing well,
 though it is assumed that that is largely because the virtual machine is very small and
 fits into I-cache.
-* On Haswell and newer Intel architectures, dispatch method is, under most circumstances, not
-significant performance differentiator. On low-power architectures - ARM, Intel and AMD - it
-continues to make a difference.
+* Taking the _Unpredictable_ test as most real-world-lie, on Haswell and newer Intel architectures,
+dispatch method is not significant performance differentiator. On low-power architectures - ARM,
+Intel and AMD - it continues to make a difference.
+
+Again, go to the spreadsheet to see this chart directly for a better view; this next chart
+illustrates the decrease in performance of branch prediction for each CPU for _Longer Repetitive_
+and _Unpredictable_ against `switch.rs` for _Nested Loop_. Color coding remains the same as
+the earlier chart.
+
+![Cycles per VM instruction](https://docs.google.com/spreadsheets/d/1qbBt1NgvmLLmYxHlPRZNsXybivQIDVUAdsCNGKmNhos/pubchart?oid=605750577&format=image){:class="img-responsive"}
+
+* In each case, _Unpredictable_ results are consistently worse than _Nested Loop_. It is
+illustrative to compare _Longer Repetitive_ results for `threadedasm.rs` to the other two tests,
+though: the Intel CPUs have identical performance patterns, showing a stepping up in cycle count
+from _Nested Loop_ to _Longer Repetitive_ to _Unpredictable_ whereas ARM and AMD results
+show _Longer Repetitive_ performing similarly to or worse than _Unpredictable_.
+* I am not sure what this means, but it may be possible to say that Intel has deliberately
+targeted branch prediction optimization at threaded code indirect jump patterns, whereas ARM
+and AMD branch predictors may have simpler indirect branch pattern recognition.
 
 
 ## Conclusions
@@ -340,12 +369,14 @@ In addition, Rust and LLVM do not TC-optimize for 32bit
 x86 or debug builds, making this a non-option as long as Rust does not explicitly support TCO.
 
 If the FSM or VM is particularly small, unrolling the dispatch loop may be an option as it does
-give a performance increase on most architectures.
+give a performance increase under _Unpredictable_ circumstances.
 
 With respect to computed gotos for threaded dispatch, in my opinion it should be possible to
 encapsulate the inline assembly in macros that could be imported from a crate. Because inline
 assembly is required, this cannot currently be done in stable Rust. Compiler support beyond
 inline assembly and possibly procedural macros should not be required.
+
+It seems there may be [some work][10] involved before inline assembly can be stabilized.
 
 If targeting modern high-performance Intel architectures, dispatch method may make little
 difference. Any other architecture, however, may benefit from dispatch method optimization.
@@ -359,6 +390,8 @@ difference. Any other architecture, however, may benefit from dispatch method op
 * [The Structure and Performance of Efficient Interpreters][5] - Ertl and Gregg, 2003
 * [Branch Prediction and the Performance of Interpreters][6]- Rohou, Swamy and Seznec, 2015
 * [LuaJIT 2 beta 3 is out: Support both x32 & x64][7] - Mike Pall, Discussion on Reddit, 2010
+* [Threaded Code][9] - Wikipedia article
+* [Github rust-lang/rust][10] - AA-inline-assembly tagged issues
 
 [1]: http://eli.thegreenplace.net/2012/07/12/computed-goto-for-efficient-dispatch-tables
 [2]: http://users.rust-lang.org/t/how-can-i-approach-the-performance-of-c-interpreter-that-uses-computed-gotos/6261/4
@@ -367,3 +400,5 @@ difference. Any other architecture, however, may benefit from dispatch method op
 [6]: https://hal.inria.fr/hal-01100647/document
 [7]: https://www.reddit.com/r/programming/comments/badl2/luajit_2_beta_3_is_out_support_both_x32_x64/c0lrus0/
 [8]: https://github.com/rust-lang/rust/issues/14375
+[9]: https://en.wikipedia.org/wiki/Threaded_code
+[10]: https://github.com/rust-lang/rust/issues?q=is%3Aopen+is%3Aissue+label%3AA-inline-assembly
