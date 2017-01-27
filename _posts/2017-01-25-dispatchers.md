@@ -7,6 +7,12 @@ categories: Rust
 
 ### tl;dr
 
+Edit: go straight to
+[stocklund's response](https://internals.rust-lang.org/t/computed-gotos-tco-threaded-interpreters-experiments-and-findings/4668/9)
+on the Rust Internals forum for the final word on this topic.
+
+....
+
 Computed gotos or tail calls may give a worthwhile advantage on older or low-power architectures
 when implementing an FSM or a VM dispatch loop. There are a lot of these around, ARM processors
 being ubiquitous. The performance improvement over a single match statement could be up to 20%.
