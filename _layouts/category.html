@@ -1,0 +1,15 @@
+---
+layout: default
+---
+<h3>Posts in this category:</h3>
+
+{% unless page.content == '' %}
+  <p>{{ page.content }}</p>
+{% endunless %}
+
+<ul>
+{% for post in site.categories.[page.category] %}
+  <li><span class="post-meta">{{ post.date | date: "%b %-d, %Y" }}: </span>
+      <a class="post-link" href="{{ post.url | prepend: site.baseurl }}">{{ post.title }}</a></li>
+{% endfor %}
+</ul>

@@ -5,6 +5,8 @@ date:   2017-01-25 23:00 EST5EDT
 category: folly
 ---
 
+# Virtual Machine Dispatch Experiments in Rust
+
 ### tl;dr
 
 Edit: go straight to

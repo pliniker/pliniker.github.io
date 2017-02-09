@@ -6,6 +6,7 @@ category: folly
 redirect_from: "/mo-gc-intro.html"
 ---
 
+# An Experiment in Garbage Collection
 
 **Reinventing Garbage Collection Problems from First Principles by Aiming Way High.**
 
