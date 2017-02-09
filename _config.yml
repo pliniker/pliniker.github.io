@@ -15,4 +15,4 @@ gems:
   - jekyll-redirect-from
   - jekyll-feed
 
-theme: cayman
+theme: modernist
