@@ -18,5 +18,15 @@ timezone: EST5EDT
 # Build settings
 markdown: kramdown
 
+permalink: /post/:title/
+
 gems:
   - jekyll-redirect-from
+  - jekyll-sitemap
+  - jekyll-feed
+  - jekyll-seo-tag
+
+collections:
+  categories:
+    output: true
+    permalink: /category/:name/

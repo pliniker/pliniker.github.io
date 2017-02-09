@@ -2,7 +2,7 @@
 layout: post
 title:  "Virtual Machine Dispatch Experiments in Rust"
 date:   2017-01-25 23:00 EST5EDT
-categories: Rust
+categories: folly
 ---
 
 ### tl;dr
