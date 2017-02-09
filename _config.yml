@@ -15,15 +15,3 @@ gems:
   - jekyll-redirect-from
   - jekyll-feed
 
-collections:
-  my_categories:
-    output: true
-    permalink: /category/:name/
-
-defaults:
-  -
-    scope:
-      path: ""
-      type: my_categories
-    values:
-      layout: my_category
