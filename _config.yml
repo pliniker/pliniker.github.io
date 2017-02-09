@@ -15,4 +15,7 @@ gems:
   - jekyll-redirect-from
   - jekyll-feed
 
-theme: modernist
+theme: jekyll-theme-modernist
+
+google_analytics: UA-91688143-1
+show_downloads: false
