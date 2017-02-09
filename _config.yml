@@ -19,3 +19,5 @@ gems:
 
 #google_analytics: UA-91688143-1
 #show_downloads: false
+
+theme: jekyll-theme-modernist
