@@ -30,3 +30,23 @@ collections:
   categories:
     output: true
     permalink: /category/:name/
+
+defaults:
+  -
+    scope:
+      path: ""
+      type: pages
+    values:
+      layout: page
+  -
+    scope:
+      path: ""
+      type: posts
+    values:
+     layout: post
+  -
+    scope:
+      path: ""
+      type: categories
+    values:
+      layout: category
