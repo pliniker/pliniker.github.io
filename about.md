@@ -11,3 +11,6 @@ My interests are programming languages and their implementation, and machine lea
 I don't know a whole lot about either.
 
 Sometimes I'm on [moznet](https://wiki.mozilla.org/IRC) as `pliniker`.
+
+Otherwise, I live in Asheville with one wife, four children, two dogs and thirteen
+chickens. Sometimes I even have time to program stuff!
