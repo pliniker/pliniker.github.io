@@ -5,6 +5,12 @@
 
 header { background: #A6682D; }
 
-header h1 { color: #303030; text-shadow: #784B20 0 1px 0; }
+header h1 { color: #fafafa; text-shadow: #784B20 0 1px 0; }
 
-header p { color: #303030; }
+header p { color: #fafafa; }
+
+header ul { background: #fafafa; height: 24px; }
+
+header ul li { border-right: 1px solid #555; height: 24px; }
+
+header ul a strong { color: #555; }
