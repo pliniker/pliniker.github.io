@@ -3,14 +3,9 @@
 
 @import "{{ site.theme }}";
 
-header { background: #A6682D; }
+header { background: #96738F; }
 
-header h1 { color: #fafafa; text-shadow: #784B20 0 1px 0; }
+header h1 { color: #F4F8EB; text-shadow: #67395E 0 1px 0; }
 
-header p { color: #fafafa; }
+header p { color: #F4F8EB; }
 
-header ul { background: #fafafa; height: 24px; }
-
-header ul li { border-right: 1px solid #555; height: 24px; }
-
-header ul a strong { color: #555; }
