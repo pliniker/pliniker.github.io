@@ -33,8 +33,8 @@
       <div id="disqus_thread"></div>
       <script>
           var disqus_config = function () {
-              this.page.url = "{{ page.url }}";
-              this.page.identifier = "{{ page.id }}";
+              this.page.url = "{{ post.url | prepend: site.baseurl }}";
+              this.page.identifier = "{{ post.id }}";
           };
 
           (function() { // DON'T EDIT BELOW THIS LINE
