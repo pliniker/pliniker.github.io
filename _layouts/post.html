@@ -22,19 +22,30 @@
           <p>{{ site.description | default: site.github.project_tagline }}</p>
         {% endif %}
         <p class="view"><a href="{{ site.github.repository_url }}">View the Project on GitHub <small>{{ github_name }}</small></a></p>
-<!--        <ul>
-        {% if site.show_downloads %}
-          <li><a href="{{ site.github.zip_url }}">Download <strong>ZIP File</strong></a></li>
-          <li><a href="{{ site.github.tar_url }}">Download <strong>TAR Ball</strong></a></li>
-        {% endif %}
-        <li><a href="{{ site.github.repository_url }}">View On <strong>GitHub</strong></a></li>
-        </ul> -->
       </header>
       <section>
 
       {{ content }}
 
       </section>
+
+      {% if page.comments %}
+      <div id="disqus_thread"></div>
+      <script>
+          var disqus_config = function () {
+              this.page.url = "{{ page.url }}";
+              this.page.identifier = "{{ page.id }}";
+          };
+
+          (function() { // DON'T EDIT BELOW THIS LINE
+              var d = document, s = d.createElement('script');
+              s.src = '//pliniker-github-io.disqus.com/embed.js';
+              s.setAttribute('data-timestamp', +new Date());
+              (d.head || d.body).appendChild(s);
+          })();
+      </script>
+      <noscript>Please enable JavaScript to view the <a href="https://disqus.com/?ref_noscript">comments powered by Disqus.</a></noscript>
+      {% endif %}
     </div>
     <footer>
     {% if site.github.is_project_page %}
