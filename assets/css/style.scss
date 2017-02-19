@@ -3,6 +3,11 @@
 
 @import "{{ site.theme }}";
 
+code { 
+    font-family: SourceCodePro, Hack, Monospace, Lucidia Console, Terminal;
+    font-size: 13px;
+}
+
 section { font-size: 17px; }
 
 header { background: #96738F; }
