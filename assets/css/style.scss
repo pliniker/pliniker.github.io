@@ -3,6 +3,11 @@
 
 @import "{{ site.theme }}";
 
+body {
+    font-family: OpenSansLight, Hevetica Neue, Helvetica;
+    font-size: 18px;
+}
+
 code { 
     font-family: SourceCodePro, Hack, Monospace, Lucidia Console, Terminal;
     font-size: 13px;
@@ -10,9 +15,12 @@ code {
 
 section { font-size: 17px; }
 
-header { background: #96738F; }
+header { background: #444D57; }
 
-header h1 { color: #F4F8EB; text-shadow: #67395E 0 1px 0; }
+header h1 { font-family: serif; line-height: 150%; text-align: left; color: #F4F8EB; text-shadow: #3C4C87 0 1px 0; font-weight: lighter; }
 
 header p { color: #F4F8EB; }
 
+header a { font-size: 16px; padding: 7px; color: #D0D4C9; }
+
+li { padding: 7px; }

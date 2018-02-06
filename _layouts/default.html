@@ -18,11 +18,11 @@
     <div class="wrapper">
       <header {% unless site.description or site.github.project_tagline %} class="without-description" {% endunless %}>
         <h1>{{ site.title | default: site.github.repository_name }}</h1>
-        {% if site.description or site.github.project_tagline %}
-          <p>{{ site.description | default: site.github.project_tagline }}</p>
+        {% if site.description %}
+          <p>{{ site.description }}</p>
         {% endif %}
-        <a href="/about/"><strong>about</strong></a> - 
-        <a href="/"><strong>home</strong></a>
+        <a href="/about/">[ about ]</a> - 
+        <a href="/">[ blog ]</a>
       </header>
       <section>
 
@@ -31,7 +31,7 @@
       </section>
     </div>
     <footer>
-      <p>Site maintained by <a href="{{ site.github.owner_url }}">{{ site.github.owner_name }}</a></p>
+      <p>maintained by <a href="{{ site.github.owner_url }}">{{ site.github.owner_name }}</a></p>
     </footer>
     <!--[if !IE]><script>fixScale(document);</script><![endif]-->
 
