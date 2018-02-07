@@ -6,6 +6,9 @@ permalink: /about/
 
 ## About Me
 
+{: style="text-align:center"}
+![image-title-here](https://avatars2.githubusercontent.com/u/1785642){:class="img-responsive" style="border:2px solid black"}
+
 * I live in Asheville, NC with my wife, five children, two dogs and thirteen (I think)
   chickens.
 * I like [experiments](https://jvns.ca/blog/2017/01/04/rules-of-programming-experiments/).
@@ -16,6 +19,6 @@ permalink: /about/
   are in that direction.
 * After twenty years of doing nothing much with music - last used FastTracker 2 in '98 -
   I'm learning [Bitwig Studio](https://bitwig.com). I'll post anything that turns out
-  not too terrible on [Soundcloud](https://soundcloud.com/user-885707709).
+  not too terrible to [Soundcloud](https://soundcloud.com/user-885707709).
 * Connect with me on [Twitter](https://twitter.com/peterliniker) or [Github](https://github.com/pliniker).
 * Sometimes I'm on [moznet](https://wiki.mozilla.org/IRC) as `pliniker`.
