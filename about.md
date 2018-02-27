@@ -19,7 +19,7 @@ permalink: /about/
   are in that direction.
 * After twenty years of doing nothing much with music - last used FastTracker 2 in '98 -
   I'm learning [Bitwig Studio](https://bitwig.com). I'll post anything that turns out
-  not too terrible to [Soundcloud](https://soundcloud.com/peterliniker).
+  not too terrible to [Soundcloud](https://soundcloud.com/user-885707709).
 * Connect with me on [Twitter](https://twitter.com/peterliniker),
   [Github](https://github.com/pliniker) or [LinkedIn](https://www.linkedin.com/in/liniker/).
 * Sometimes I'm on [moznet](https://wiki.mozilla.org/IRC) in `#rust` as `pliniker`.
