@@ -9,8 +9,7 @@ permalink: /about/
 {: style="text-align:center"}
 ![image-title-here](https://avatars2.githubusercontent.com/u/1785642){:class="img-responsive" style="border:2px solid black"}
 
-* I live in Asheville, NC with my wife, five children, two dogs and thirteen (I think)
-  chickens.
+* I live in Asheville, NC with my wife, five children, two dogs and fifteen chickens.
 * I like [experiments](https://jvns.ca/blog/2017/01/04/rules-of-programming-experiments/).
   I learn best through trying and most of all from getting it wrong. Most of my more
   interesting experiments survive on [Github](https://github.com/pliniker).
