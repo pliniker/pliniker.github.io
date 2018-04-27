@@ -15,10 +15,10 @@ permalink: /about/
   interesting experiments survive on [Github](https://github.com/pliniker).
 * My interests are programming languages and their implementation. In the long term
   I want to see some languages runtimes implemented on Rust. Most of my experiments
-  are in that direction.
+  are in that direction. I'm organizing a [Languages Hosted In Rust](https://github.com/rust-hosted-langs/)
+  group aimed at bringing together folk with a shared interest in this.
 * After twenty years of doing nothing much with music - last used FastTracker 2 in '98 -
   I'm learning [Bitwig Studio](https://bitwig.com). I'll post anything that turns out
   not too terrible to [Soundcloud](https://soundcloud.com/user-885707709).
-* Connect with me on [Twitter](https://twitter.com/peterliniker),
-  [Github](https://github.com/pliniker) or [LinkedIn](https://www.linkedin.com/in/liniker/).
-* Sometimes I'm on [moznet](https://wiki.mozilla.org/IRC) in `#rust` as `pliniker`.
+* Connect with me on [Twitter](https://twitter.com/peterliniker) and
+  [Github](https://github.com/pliniker).
