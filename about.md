@@ -6,10 +6,11 @@ permalink: /about/
 
 ## About Me
 
-* I'm part of the [Languages Hosted In Rust](https://github.com/rust-hosted-langs/)
-  group aimed at bringing together folk with a shared interest in this.
+* My interest is in programming language and runtime design and implementation.
   In the long term I want to see a variety of language runtimes implemented on
   Rust as an alternative to the many C implemented languages.
+  I'm part of the [Languages Hosted In Rust](https://github.com/rust-hosted-langs/)
+  group aimed at bringing together folk with a shared interest in this.
 
 {: style="text-align:center"}
 ![image-title-here](https://avatars2.githubusercontent.com/u/1785642){:class="img-responsive" style="border:2px solid black; width: 360px;"}
