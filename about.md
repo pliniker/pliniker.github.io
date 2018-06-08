@@ -25,5 +25,6 @@ permalink: /about/
   [Soundcloud](https://soundcloud.com/user-885707709).
 * Originally from the UK, I live in Asheville, NC with my wife, five children,
   two dogs and fifteen chickens.
-* Connect with me on [Twitter](https://twitter.com/peterliniker) and
+* Connect with me on [Twitter](https://twitter.com/peterliniker),
+  [Gitlab](https://gitlab.com/pliniker) and
   [Github](https://github.com/pliniker).
