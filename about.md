@@ -37,4 +37,8 @@ permalink: /about/
   I fool around on piano and ukulele on occasion.
 * Connect with me on
   [Github](https://github.com/pliniker) and
-  [Gitlab](https://gitlab.com/pliniker).
+  [Gitlab](https://gitlab.com/pliniker). I am also reachable in the
+  [Gitter Rust-Hosted-Langs](https://gitter.im/rust-hosted-langs/runtimes-WG)
+  channel, the
+  [Rust Zulip](https://rust-lang.zulipchat.com/) server and as `pliniker#8777`
+  on the official Rust and Rust Community Discord servers.
