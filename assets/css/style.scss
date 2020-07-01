@@ -18,31 +18,15 @@ code {
     font-size: 14px;
 }
 
-section {
-    font-size: 17px;
-    border: 2px;
-    border-style: solid;
-    border-color: #316D83;
-}
+section { font-size: 17px; }
 
-header {
-    background: #d25555;
-    border: 2px;
-    border-style: solid;
-    border-color: #891212
-}
+header { background: #444D57; }
 
-header h1 {
-    font-family: serif;
-    line-height: 150%;
-    text-align: left;
-    color: #000;
-    text-shadow: #891212 0 1px 0;
-    font-weight: lighter;
-}
+header h1 { font-family: serif; line-height: 150%; text-align: left; color: #F4F8EB; text-shadow: #3C4C87 0 1px 0; font-weight: lighter; }
 
-header p { color: #000; }
+header p { color: #F4F8EB; }
 
-header a { font-size: 16px; padding: 7px; color: #000; }
+header a { font-size: 16px; padding: 7px; color: #D0D4C9; }
+
 
 li { padding: 3px; }
