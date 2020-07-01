@@ -37,7 +37,8 @@ Now, I'd like to make public what I have so far, which is, in short:
 * an allocator
 * an s-expression language compiler and interpreter that support expressions,
   functions and closures
-* a few chapters of the book written
+* a [few chapters of the book](https://rust-hosted-langs.github.io/book/) 
+  written
 
 There's much more to do and contributions are invited and welcomed!
 
