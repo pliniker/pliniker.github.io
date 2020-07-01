@@ -2,7 +2,7 @@ title: Peter Liniker
 description: ""
 baseurl: ""
 url: "http://pliniker.github.io"
-github_username:  pliniker
+github_username: pliniker
 
 timezone: EST5EDT
 
@@ -10,7 +10,7 @@ markdown: kramdown
 
 permalink: /post/:title/
 
-gems:
+plugins:
   - jekyll-redirect-from
   - jekyll-feed
 

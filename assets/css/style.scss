@@ -8,19 +8,41 @@ body {
     font-size: 18px;
 }
 
-code { 
-    font-family: SourceCodePro, Hack, Monospace, Lucidia Console, Terminal;
-    font-size: 12px;
+.wrapper {
+    max-width: 1024px;
+    width: unset;
 }
 
-section { font-size: 17px; }
+code {
+    font-family: SourceCodePro, Hack, Monospace, Lucidia Console, Terminal;
+    font-size: 14px;
+}
 
-header { background: #444D57; }
+section {
+    font-size: 17px;
+    border: 2px;
+    border-style: solid;
+    border-color: #316D83;
+}
 
-header h1 { font-family: serif; line-height: 150%; text-align: left; color: #F4F8EB; text-shadow: #3C4C87 0 1px 0; font-weight: lighter; }
+header {
+    background: #d25555;
+    border: 2px;
+    border-style: solid;
+    border-color: #891212
+}
 
-header p { color: #F4F8EB; }
+header h1 {
+    font-family: serif;
+    line-height: 150%;
+    text-align: left;
+    color: #000;
+    text-shadow: #891212 0 1px 0;
+    font-weight: lighter;
+}
 
-header a { font-size: 16px; padding: 7px; color: #D0D4C9; }
+header p { color: #000; }
 
-li { padding: 7px; }
+header a { font-size: 16px; padding: 7px; color: #000; }
+
+li { padding: 3px; }
