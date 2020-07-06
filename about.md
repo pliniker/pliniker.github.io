@@ -20,10 +20,9 @@ permalink: /about/
 * While software engineering is impressive, to me, code is art.
 * I started a PhD back when I thought academic life would be my life, but it
   turned out I just like writing beautiful code.
-* It also turns out that irrational business demands don't make coding too
-  fun either.
+* It also turns out that business whims don't make coding too fun either.
 * Code is art :-)
-* I want to see a variety of language runtimes implemented in
+* What I _want_ is to see a variety of language runtimes implemented in
   Rust as an alternative to the many C implemented languages. I want to leave
   the state of software in a better place for the future.
   I'm part of the [Languages Hosted In Rust](https://github.com/rust-hosted-langs/)
@@ -39,6 +38,5 @@ permalink: /about/
   [Github](https://github.com/pliniker) and
   [Gitlab](https://gitlab.com/pliniker). I am also reachable in the
   [Gitter Rust-Hosted-Langs](https://gitter.im/rust-hosted-langs/runtimes-WG)
-  channel, the
-  [Rust Zulip](https://rust-lang.zulipchat.com/) server and as `pliniker#8777`
-  on the official Rust and Rust Community Discord servers.
+  channel, the rust-lang Zulip server and as `pliniker#8777`
+  on the official rust-lang and Rust Community Discord servers.
